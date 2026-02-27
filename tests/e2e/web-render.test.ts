@@ -40,7 +40,7 @@ describe("web render e2e", () => {
           "# Architecture map",
           "architecture and runtime flow",
           "",
-          "```ts path=src/index.ts lines=1-3 highlight=2 permalink=https://github.com/openai/codex/blob/abc/src/index.ts#L1-L3",
+          "```ts path=src/index.ts lines=3-5 highlight=2 permalink=https://github.com/openai/codex/blob/abc/src/index.ts#L3-L5",
           "const a = 1;",
           "const b = 2;",
           "console.log(a + b);",
@@ -125,6 +125,18 @@ describe("web render e2e", () => {
       expect(deckLayout.deckBorder).toBe(0);
       expect(deckLayout.snippetBorder).toBe(0);
       expect(deckLayout.deckHeightUsage).toBeGreaterThan(0.7);
+
+      const lineNumbers = await page.evaluate(() => {
+        const first = document.querySelector<HTMLElement>(".line-no");
+        const all = Array.from(document.querySelectorAll<HTMLElement>(".line-no"));
+        const last = all.at(-1);
+        return {
+          first: first?.textContent?.trim(),
+          last: last?.textContent?.trim()
+        };
+      });
+      expect(lineNumbers.first).toBe("3");
+      expect(lineNumbers.last).toBe("5");
 
       await expect(await page.textContent("#slide-title")).toContain("Architecture map");
       await page.click("#next-slide");

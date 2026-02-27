@@ -230,6 +230,7 @@ function renderSnippet(snippet: SlideSnippet): HTMLElement {
 
   const highlighted = new Set(snippet.highlightLines);
   const lines = snippet.code.split("\n");
+  const firstLine = parseSnippetStartLine(snippet.lines);
 
   lines.forEach((line, offset) => {
     const row = document.createElement("div");
@@ -240,7 +241,7 @@ function renderSnippet(snippet: SlideSnippet): HTMLElement {
 
     const lineNo = document.createElement("span");
     lineNo.className = "line-no";
-    lineNo.textContent = String(offset + 1);
+    lineNo.textContent = String(firstLine + offset);
 
     const codeText = document.createElement("span");
     codeText.className = "line-text";
@@ -253,6 +254,20 @@ function renderSnippet(snippet: SlideSnippet): HTMLElement {
   pre.appendChild(code);
   wrapper.append(meta, pre);
   return wrapper;
+}
+
+function parseSnippetStartLine(lines?: string): number {
+  if (!lines) {
+    return 1;
+  }
+
+  const match = /^(\d+)(?:-\d+)?$/.exec(lines.trim());
+  if (!match) {
+    return 1;
+  }
+
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 }
 
 function selectEl<T extends HTMLElement>(selector: string): T {

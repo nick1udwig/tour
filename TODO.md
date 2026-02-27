@@ -4,7 +4,7 @@
 - [x] 2. Move controls to top-right; icon-only buttons for Previous/Next/Save Markdown; remove Save PDF.
 - [x] 3. Remove borders around slide containers; use full horizontal + vertical space.
 - [x] 4. Apply Solarized Light/Dark themes with automatic `prefers-color-scheme`; JetBrains Mono for all text; no theme toggle.
-- [ ] 5. Show real code line numbers from snippet `lines` metadata (e.g., 3-9 renders 3..9).
+- [x] 5. Show real code line numbers from snippet `lines` metadata (e.g., 3-9 renders 3..9).
 - [ ] 6. Redesign commentary UX:
   - [ ] Code as primary content.
   - [ ] Overall comments rendered as markdown below code with collapse/expand control.
