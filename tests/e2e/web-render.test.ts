@@ -73,6 +73,16 @@ describe("web render e2e", () => {
       await page.goto(`${server.url}/?jobId=job-1`);
       await page.waitForSelector("#slide-title");
 
+      const usage = await page.evaluate(() => {
+        const shell = document.querySelector<HTMLElement>(".app-shell");
+        if (!shell) {
+          throw new Error("Missing .app-shell");
+        }
+        const rect = shell.getBoundingClientRect();
+        return rect.width / window.innerWidth;
+      });
+      expect(usage).toBeGreaterThan(0.95);
+
       await expect(await page.textContent("#slide-title")).toContain("Architecture map");
       await page.click("#next-slide");
       await expect(await page.textContent("#slide-title")).toContain("Build and run setup");
