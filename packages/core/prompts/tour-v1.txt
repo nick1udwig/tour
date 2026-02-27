@@ -1,23 +1,29 @@
-You are preparing a practical codebase onboarding tour as a markdown slide deck.
+You are generating a practical onboarding code tour as a markdown slide deck.
 
-Hard requirements:
-- Audience: engineer new to this codebase.
-- Keep total viewing time under {{maxDurationMinutes}} minutes.
-- Include the following categories:
-  1. Repository orientation and architecture map.
-  2. Runtime/data flow walkthrough.
-  3. Key modules and responsibilities.
-  4. Build/run/test workflow.
-  5. Deployment path (if inferable).
-  6. Where to start for feature work and bug fixes.
-- Use concise, pragmatic language.
+You are running in the repository working directory with tool access (shell/search/file reads).
+Inspect the repo directly.
+Verify paths and line numbers from files.
+Do not modify repository files.
+
+Output contract:
 - Output markdown only.
+- No prose before or after markdown.
 - Separate slides with a line containing exactly: ---
+- Keep total viewing time under {{maxDurationMinutes}} minutes.
+- Prefer 6-12 slides.
 
-Code snippet format (when adding snippets):
-```<lang> path=<repo-relative-path> lines=<start>-<end> highlight=<comma-separated-lines> permalink=<github-permalink>
-<code>
-```
+Required topic coverage:
+1. Repository orientation and architecture map.
+2. Runtime/data flow walkthrough.
+3. Key modules and responsibilities.
+4. Build/run/test workflow.
+5. Deployment path (if inferable).
+6. Where to start for feature work and bug fixes.
+
+Required slide titles (exact text):
+- # Architecture map
+- # Build and run setup
+- # Where to start
 
 Repository metadata:
 - owner: {{owner}}
@@ -25,5 +31,38 @@ Repository metadata:
 - branch: {{branch}}
 - commit: {{commitSha}}
 
-Context files:
-{{contextFiles}}
+How to work:
+1. Quickly map structure and stack (README, config, entry points, package/build files).
+2. Trace major runtime/data flow paths.
+3. Select only high-signal snippets.
+4. Confirm exact absolute file line numbers before writing snippet metadata.
+5. Never invent files, lines, commands, or behavior.
+
+For slides with code, use exactly one snippet and this structure:
+
+# <Slide title>
+
+```<lang> path=<repo-relative-path> lines=<A>-<B> highlight=<r1,r2,...> permalink=https://github.com/{{owner}}/{{repo}}/blob/{{commitSha}}/<repo-relative-path>#L<A>-L<B>
+<exact file content for lines A..B>
+```
+
+## Overview
+- 2-5 bullets: why this snippet matters.
+
+## Line <X> commentary
+- Specific comment for absolute file line X.
+
+## Lines <Y>-<Z> commentary
+- Specific comment for absolute file lines Y..Z.
+
+Critical formatting rules:
+- `lines=A-B` must be absolute file line numbers.
+- `highlight` must be snippet-relative row numbers (1-based within the snippet).
+- Every line commentary heading must refer to absolute lines inside A..B.
+- Use heading text that starts with `Line` or `Lines` for line commentary sections.
+- Keep bullets flat (`- item`), no nested bullets.
+- In commentary, use inline markdown only; do not use fenced code blocks.
+- Keep snippets tight (roughly 6-30 lines), high signal only.
+
+Deployment requirement:
+- If deployment path is unclear, include what was checked and state: "Not inferable from repository evidence."

@@ -29,4 +29,28 @@ describe("prompt composer", () => {
     expect(first.prompt).toContain("Repository orientation and architecture map");
     expect(first.sha256).toBe(second.sha256);
   });
+
+  it("does not embed repository files directly in the prompt", async () => {
+    const manifest = {
+      version: "v1",
+      repo: {
+        owner: "openai",
+        repo: "codex",
+        branch: "main",
+        commitSha: "abc"
+      },
+      files: [
+        {
+          path: "src/index.ts",
+          sizeBytes: 20,
+          digest: "123",
+          content: "export const x = 1;"
+        }
+      ]
+    };
+
+    const bundle = await composePrompt({ manifest, maxDurationMinutes: 60 });
+    expect(bundle.prompt).not.toContain("FILE: src/index.ts");
+    expect(bundle.prompt).not.toContain("export const x = 1;");
+  });
 });
