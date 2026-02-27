@@ -44,6 +44,13 @@ body {
   line-height: 1.1;
 }
 
+.hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 .badge {
   display: inline-block;
   margin: 0;
@@ -176,21 +183,25 @@ code {
 }
 
 .controls {
-  margin-top: 0.9rem;
   display: flex;
-  gap: 0.6rem;
-  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-end;
 }
 
 button {
   border: 2px solid var(--outline);
   background: #fff;
   color: var(--ink);
-  padding: 0.5rem 0.85rem;
-  border-radius: 999px;
+  padding: 0.42rem;
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 0.6rem;
   font-weight: 700;
   cursor: pointer;
   transition: transform 130ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 button:hover:enabled {
@@ -202,10 +213,19 @@ button:disabled {
   cursor: not-allowed;
 }
 
-button:nth-child(3),
-button:nth-child(4) {
+button:nth-child(3) {
   background: var(--accent);
   color: #fff;
+}
+
+.icon {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 @keyframes spin {
@@ -217,6 +237,14 @@ button:nth-child(4) {
 @media (max-width: 720px) {
   .app-shell {
     padding: 0.7rem;
+  }
+
+  .hero {
+    flex-direction: column;
+  }
+
+  .controls {
+    align-self: flex-end;
   }
 
   .deck-head {

@@ -7,7 +7,3 @@ export function saveMarkdown(markdown: string, filename = "tour.md"): void {
   anchor.click();
   URL.revokeObjectURL(url);
 }
-
-export function savePdf(): void {
-  window.print();
-}

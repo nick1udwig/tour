@@ -2,7 +2,7 @@ import "./style.css";
 import "./print.css";
 
 import { fetchJobStatus, fetchSlidesMarkdown } from "./api";
-import { saveMarkdown, savePdf } from "./export";
+import { saveMarkdown } from "./export";
 import { parseSlides, type Slide, type SlideBlock, type SlideSnippet } from "./markdown";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -35,14 +35,12 @@ async function boot(appRoot: HTMLDivElement, currentJobId: string): Promise<void
   const prevButton = selectEl<HTMLButtonElement>("#prev-slide");
   const nextButton = selectEl<HTMLButtonElement>("#next-slide");
   const saveMdButton = selectEl<HTMLButtonElement>("#save-md");
-  const savePdfButton = selectEl<HTMLButtonElement>("#save-pdf");
 
   let markdown = "";
   let slides: Slide[] = [];
   let index = 0;
 
   saveMdButton.disabled = true;
-  savePdfButton.disabled = true;
   prevButton.disabled = true;
   nextButton.disabled = true;
 
@@ -66,7 +64,6 @@ async function boot(appRoot: HTMLDivElement, currentJobId: string): Promise<void
     spinner.hidden = true;
     deckRoot.hidden = false;
     saveMdButton.disabled = false;
-    savePdfButton.disabled = false;
 
     renderSlide();
     return true;
@@ -139,19 +136,28 @@ async function boot(appRoot: HTMLDivElement, currentJobId: string): Promise<void
   saveMdButton.addEventListener("click", () => {
     saveMarkdown(markdown, `${currentJobId}.tour.md`);
   });
-
-  savePdfButton.addEventListener("click", () => {
-    savePdf();
-  });
 }
 
 function shellMarkup(jobId: string): string {
   return `
     <main class="app-shell">
       <header class="hero">
-        <p class="badge">Codebase Tour</p>
-        <h1>Repository Walkthrough</h1>
-        <p class="subline">job: ${escapeHtml(jobId)}</p>
+        <div class="hero-copy">
+          <p class="badge">Codebase Tour</p>
+          <h1>Repository Walkthrough</h1>
+          <p class="subline">job: ${escapeHtml(jobId)}</p>
+        </div>
+        <nav class="controls no-print" aria-label="Slide controls">
+          <button id="prev-slide" type="button" aria-label="Previous slide">
+            ${iconChevronLeft()}
+          </button>
+          <button id="next-slide" type="button" aria-label="Next slide">
+            ${iconChevronRight()}
+          </button>
+          <button id="save-md" type="button" aria-label="Save markdown">
+            ${iconDownload()}
+          </button>
+        </nav>
       </header>
 
       <section class="status-panel">
@@ -166,13 +172,6 @@ function shellMarkup(jobId: string): string {
         </div>
         <article id="slide-content" class="slide-content"></article>
       </section>
-
-      <footer class="controls no-print">
-        <button id="prev-slide" type="button">Previous</button>
-        <button id="next-slide" type="button">Next</button>
-        <button id="save-md" type="button">Save Markdown</button>
-        <button id="save-pdf" type="button">Save PDF</button>
-      </footer>
     </main>
   `;
 }
@@ -272,4 +271,16 @@ function escapeHtml(value: string): string {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function iconChevronLeft(): string {
+  return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>`;
+}
+
+function iconChevronRight(): string {
+  return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>`;
+}
+
+function iconDownload(): string {
+  return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10m0 0l4-4m-4 4l-4-4M5 18h14" /></svg>`;
 }

@@ -27,7 +27,7 @@ afterEach(async () => {
 describe("export actions e2e", () => {
   const testCase = PLAYWRIGHT_ENABLED ? it : it.skip;
 
-  testCase("exports markdown and triggers print", async () => {
+  testCase("exports markdown", async () => {
     await ensureWebBuild();
     await withTempDir(async (tempDir) => {
       const artifactRoot = path.join(tempDir, "job");
@@ -62,23 +62,7 @@ describe("export actions e2e", () => {
       await page.click("#save-md");
       const download = await downloadPromise;
       expect(download.suggestedFilename()).toContain(".tour.md");
-
-      await page.evaluate(() => {
-        const state = globalThis as unknown as {
-          print: () => void;
-          __printed?: boolean;
-        };
-        state.print = () => {
-          state.__printed = true;
-        };
-      });
-
-      await page.click("#save-pdf");
-      const wasPrinted = await page.evaluate(() => {
-        const state = globalThis as unknown as { __printed?: boolean };
-        return state.__printed ?? false;
-      });
-      expect(wasPrinted).toBeTrue();
+      await expect(await page.$("#save-pdf")).toBeNull();
 
       await browser.close();
     });

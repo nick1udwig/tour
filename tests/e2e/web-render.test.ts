@@ -83,6 +83,28 @@ describe("web render e2e", () => {
       });
       expect(usage).toBeGreaterThan(0.95);
 
+      const controls = await page.evaluate(() => {
+        const bar = document.querySelector<HTMLElement>(".controls");
+        if (!bar) {
+          throw new Error("Missing .controls");
+        }
+
+        const bounds = bar.getBoundingClientRect();
+        const buttons = Array.from(bar.querySelectorAll<HTMLButtonElement>("button"));
+        const iconOnly = buttons.every((button) => button.textContent?.trim().length === 0);
+
+        return {
+          top: bounds.top,
+          rightGap: window.innerWidth - bounds.right,
+          hasSavePdf: Boolean(document.querySelector("#save-pdf")),
+          iconOnly
+        };
+      });
+      expect(controls.top).toBeLessThan(100);
+      expect(controls.rightGap).toBeLessThan(80);
+      expect(controls.hasSavePdf).toBeFalse();
+      expect(controls.iconOnly).toBeTrue();
+
       await expect(await page.textContent("#slide-title")).toContain("Architecture map");
       await page.click("#next-slide");
       await expect(await page.textContent("#slide-title")).toContain("Build and run setup");
