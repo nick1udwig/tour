@@ -135,6 +135,13 @@ function renderOverallComments(markdown: string): HTMLElement {
   const shell = document.createElement("section");
   shell.className = "overall-comments";
 
+  const header = document.createElement("div");
+  header.className = "overall-header";
+
+  const label = document.createElement("p");
+  label.className = "overall-label";
+  label.textContent = "Overview";
+
   const toggle = document.createElement("button");
   toggle.type = "button";
   toggle.className = "overall-toggle";
@@ -153,7 +160,8 @@ function renderOverallComments(markdown: string): HTMLElement {
     toggle.innerHTML = collapsed ? iconChevronDown() : iconChevronUp();
   });
 
-  shell.append(toggle, body);
+  header.append(label, toggle);
+  shell.append(header, body);
   return shell;
 }
 

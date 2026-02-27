@@ -158,16 +158,25 @@ describe("commentary windows e2e", () => {
       expect(resizeDelta.width).toBeGreaterThan(20);
       expect(resizeDelta.height).toBeGreaterThan(20);
 
-      await page.evaluate(() => {
-        const state = globalThis as unknown as { document: any };
-        state.document.querySelector(".overall-toggle")?.click();
-      });
+      await page.click(".overall-toggle");
       const commentsCollapsed = await page.evaluate(() => {
         const state = globalThis as unknown as { document: any };
         const body = state.document.querySelector(".overall-comment-body");
         return body?.dataset.collapsed === "true";
       });
       expect(commentsCollapsed).toBeTrue();
+
+      await page.click(".overall-toggle");
+      const commentsExpanded = await page.evaluate(() => {
+        const state = globalThis as unknown as { document: any };
+        const body = state.document.querySelector(".overall-comment-body");
+        return {
+          expanded: body?.dataset.collapsed === "false",
+          hasText: Boolean(body?.textContent?.includes("Overall notes"))
+        };
+      });
+      expect(commentsExpanded.expanded).toBeTrue();
+      expect(commentsExpanded.hasText).toBeTrue();
 
       await page.evaluate(() => {
         const state = globalThis as unknown as { document: any; PointerEvent: any };
