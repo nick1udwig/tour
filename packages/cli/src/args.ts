@@ -1,4 +1,4 @@
-import type { CliOptions } from "@tour/shared";
+import type { CliOptions, ModelReasoningEffort } from "@tour/shared";
 
 import { parseGitHubRepoUrl } from "@tour/core";
 
@@ -9,7 +9,7 @@ export interface ParsedArgsResult {
   helpText: string;
 }
 
-export function parseCliArgs(argv: string[]): ParsedArgsResult {
+export function parseCliArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ParsedArgsResult {
   const helpText = buildHelpText();
   const args = [...argv];
 
@@ -22,9 +22,20 @@ export function parseCliArgs(argv: string[]): ParsedArgsResult {
   }
 
   const positionals: string[] = [];
+  const envReasoningEffort = parseReasoningEffort(env.TOUR_REASONING_EFFORT);
+  if (env.TOUR_REASONING_EFFORT && !envReasoningEffort) {
+    return {
+      ok: false,
+      helpText,
+      error: `Invalid TOUR_REASONING_EFFORT value: ${env.TOUR_REASONING_EFFORT}`
+    };
+  }
+
   const options: CliOptions = {
     githubUrl: "",
-    open: false
+    open: false,
+    model: env.TOUR_MODEL?.trim() || undefined,
+    reasoningEffort: envReasoningEffort ?? undefined
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -82,6 +93,21 @@ export function parseCliArgs(argv: string[]): ParsedArgsResult {
       continue;
     }
 
+    if (token === "--reasoning-effort") {
+      const value = parseReasoningEffort(next);
+      if (!value) {
+        return {
+          ok: false,
+          helpText,
+          error: `Invalid --reasoning-effort value: ${next}`
+        };
+      }
+
+      options.reasoningEffort = value;
+      index += 1;
+      continue;
+    }
+
     if (token === "--max-duration") {
       const value = Number(next);
       if (!Number.isFinite(value) || value <= 0) {
@@ -134,10 +160,23 @@ export function parseCliArgs(argv: string[]): ParsedArgsResult {
 function buildHelpText(): string {
   return [
     "Usage:",
-    "  tour <github-url> [--branch <branch>] [--port <n>] [--open] [--out <path>] [--model <id>] [--max-duration <minutes>]",
+    "  tour <github-url> [--branch <branch>] [--port <n>] [--open] [--out <path>] [--model <id>] [--reasoning-effort <minimal|low|medium|high|xhigh>] [--max-duration <minutes>]",
     "",
     "Examples:",
-    "  tour https://github.com/openai/codex",
-    "  tour https://github.com/openai/codex --branch main --port 4173 --open"
+    "  tour https://github.com/nick1udwig/tour",
+    "  tour https://github.com/nick1udwig/tour --branch main --port 4173 --model gpt-5.3-codex --reasoning-effort medium --open"
   ].join("\n");
+}
+
+function parseReasoningEffort(input: string | undefined): ModelReasoningEffort | null {
+  if (!input) {
+    return null;
+  }
+
+  const value = input.trim().toLowerCase();
+  if (value === "minimal" || value === "low" || value === "medium" || value === "high" || value === "xhigh") {
+    return value;
+  }
+
+  return null;
 }

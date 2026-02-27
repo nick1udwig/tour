@@ -19,7 +19,9 @@ import {
 } from "@tour/core";
 import { InMemoryJobStore, startTourServer } from "@tour/server";
 import {
+  DEFAULT_MODEL,
   DEFAULT_MAX_DURATION_MINUTES,
+  DEFAULT_MODEL_REASONING_EFFORT,
   type CliOptions,
   type JobMeta,
   type ModelMetadata
@@ -127,6 +129,7 @@ export async function orchestrateTour(
     const generated = await generateWithCodexFn({
       prompt: prompt.prompt,
       model: options.model,
+      reasoningEffort: options.reasoningEffort,
       workingDirectory: paths.repoDir,
       maxDurationMinutes: options.maxDurationMinutes
     });
@@ -198,9 +201,9 @@ export async function orchestrateTour(
           provider: "codex-sdk",
           package: "@openai/codex-sdk",
           packageVersion: "0.106.0",
-          model: options.model ?? "unknown",
+          model: options.model ?? DEFAULT_MODEL,
           temperature: 0,
-          modelReasoningEffort: "minimal"
+          modelReasoningEffort: options.reasoningEffort ?? DEFAULT_MODEL_REASONING_EFFORT
         },
       status: "failed",
       error: {

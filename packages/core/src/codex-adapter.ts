@@ -3,8 +3,10 @@ import { Codex } from "@openai/codex-sdk";
 import {
   DEFAULT_MAX_DURATION_MINUTES,
   DEFAULT_MODEL,
+  DEFAULT_MODEL_REASONING_EFFORT,
   type GenerationResult,
-  type ModelMetadata
+  type ModelMetadata,
+  type ModelReasoningEffort
 } from "@tour/shared";
 
 const PACKAGE_VERSION = "0.106.0";
@@ -26,6 +28,7 @@ interface CodexClientLike {
 interface GenerateWithCodexInput {
   prompt: string;
   model?: string;
+  reasoningEffort?: ModelReasoningEffort;
   workingDirectory: string;
   maxDurationMinutes?: number;
 }
@@ -39,6 +42,7 @@ export async function generateWithCodex(
   deps: GenerateWithCodexDeps = {}
 ): Promise<{ result: GenerationResult; model: ModelMetadata }> {
   const model = input.model ?? DEFAULT_MODEL;
+  const reasoningEffort = input.reasoningEffort ?? DEFAULT_MODEL_REASONING_EFFORT;
   const maxDurationMinutes = input.maxDurationMinutes ?? DEFAULT_MAX_DURATION_MINUTES;
 
   const codexClient =
@@ -58,7 +62,7 @@ export async function generateWithCodex(
     model,
     workingDirectory: input.workingDirectory,
     skipGitRepoCheck: true,
-    modelReasoningEffort: "minimal",
+    modelReasoningEffort: reasoningEffort,
     approvalPolicy: "never",
     sandboxMode: "danger-full-access",
     networkAccessEnabled: false,
@@ -87,7 +91,7 @@ export async function generateWithCodex(
         packageVersion: PACKAGE_VERSION,
         model,
         temperature: 0,
-        modelReasoningEffort: "minimal"
+        modelReasoningEffort: reasoningEffort
       }
     };
   } catch (error) {
@@ -106,6 +110,10 @@ function mapCodexError(error: unknown): string {
 
   if (/abort|exceeded/i.test(message)) {
     return `Codex generation failed: ${message}`;
+  }
+
+  if (/reasoning\\.effort|unsupported value/i.test(message)) {
+    return `Codex generation failed: unsupported reasoning effort for selected model. Use --reasoning-effort medium (or TOUR_REASONING_EFFORT=medium), or set a compatible model. Raw error: ${message}`;
   }
 
   return `Codex generation failed: ${message}`;

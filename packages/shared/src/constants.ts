@@ -2,7 +2,8 @@ export const DEFAULT_TOUR_HOME_DIR = ".tour";
 export const TIMESTAMP_UTC_PATTERN = /^\d{8}-\d{6}Z$/;
 
 export const DEFAULT_PORT = 4173;
-export const DEFAULT_MODEL = "gpt-5-codex";
+export const DEFAULT_MODEL = "gpt-5.3-codex";
+export const DEFAULT_MODEL_REASONING_EFFORT = "medium";
 export const DEFAULT_MAX_DURATION_MINUTES = 45;
 
 export const CONTEXT_VERSION = "v1";

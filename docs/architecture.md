@@ -23,5 +23,5 @@
 - Stable file walk and sort order.
 - Exclusion rules for binaries/generated files.
 - Prompt template versioned (`tour-v1`) and hash recorded.
-- Codex adapter uses deterministic settings contract (`temperature=0`, `modelReasoningEffort=minimal`).
+- Codex adapter uses deterministic settings contract (`temperature=0`, `modelReasoningEffort=medium` by default).
 - Markdown normalization persisted (`tour.normalized.md`).

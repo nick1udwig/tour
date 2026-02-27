@@ -60,9 +60,9 @@ describe("failure paths", () => {
                       provider: "codex-sdk",
                       package: "@openai/codex-sdk",
                       packageVersion: "0.106.0",
-                      model: "gpt-5-codex",
+                      model: "gpt-5.3-codex",
                       temperature: 0,
-                      modelReasoningEffort: "minimal"
+                      modelReasoningEffort: "medium"
                     }
                   }),
             startTourServer: async () => ({

@@ -46,8 +46,11 @@ export interface CliOptions {
   open: boolean;
   out?: string;
   model?: string;
+  reasoningEffort?: ModelReasoningEffort;
   maxDurationMinutes?: number;
 }
+
+export type ModelReasoningEffort = "minimal" | "low" | "medium" | "high" | "xhigh";
 
 export interface RunPaths {
   root: string;
@@ -95,7 +98,7 @@ export interface ModelMetadata {
   packageVersion: string;
   model: string;
   temperature: number;
-  modelReasoningEffort: "minimal" | "low" | "medium" | "high" | "xhigh";
+  modelReasoningEffort: ModelReasoningEffort;
 }
 
 export interface GenerationResult {
