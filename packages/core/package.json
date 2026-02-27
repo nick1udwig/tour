@@ -1,0 +1,11 @@
+{
+  "name": "@tour/core",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {
+    "@openai/codex": "0.106.0",
+    "@openai/codex-sdk": "0.106.0",
+    "@tour/shared": "workspace:*"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "tour",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build:web": "bun run --cwd apps/web build",
+    "dev:web": "bun run --cwd apps/web dev",
+    "docs:list": "ls docs",
+    "test": "bun test tests",
+    "test:e2e": "playwright test",
+    "typecheck": "bunx tsc --noEmit -p apps/web/tsconfig.json && bunx tsc --noEmit -p packages/cli/tsconfig.json && bunx tsc --noEmit -p packages/core/tsconfig.json && bunx tsc --noEmit -p packages/server/tsconfig.json && bunx tsc --noEmit -p packages/shared/tsconfig.json && bunx tsc --noEmit -p tests/tsconfig.json"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@types/node": "^22.15.30",
+    "bun-types": "latest",
+    "typescript": "^5.9.2"
+  }
+}

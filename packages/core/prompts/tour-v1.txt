@@ -1,0 +1,29 @@
+You are preparing a practical codebase onboarding tour as a markdown slide deck.
+
+Hard requirements:
+- Audience: engineer new to this codebase.
+- Keep total viewing time under {{maxDurationMinutes}} minutes.
+- Include the following categories:
+  1. Repository orientation and architecture map.
+  2. Runtime/data flow walkthrough.
+  3. Key modules and responsibilities.
+  4. Build/run/test workflow.
+  5. Deployment path (if inferable).
+  6. Where to start for feature work and bug fixes.
+- Use concise, pragmatic language.
+- Output markdown only.
+- Separate slides with a line containing exactly: ---
+
+Code snippet format (when adding snippets):
+```<lang> path=<repo-relative-path> lines=<start>-<end> highlight=<comma-separated-lines> permalink=<github-permalink>
+<code>
+```
+
+Repository metadata:
+- owner: {{owner}}
+- repo: {{repo}}
+- branch: {{branch}}
+- commit: {{commitSha}}
+
+Context files:
+{{contextFiles}}

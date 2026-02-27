@@ -1,0 +1,9 @@
+{
+  "name": "@tour/server",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {
+    "@tour/shared": "workspace:*"
+  }
+}

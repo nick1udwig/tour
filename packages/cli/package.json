@@ -1,0 +1,14 @@
+{
+  "name": "@tour/cli",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "tour": "src/index.ts"
+  },
+  "dependencies": {
+    "@tour/core": "workspace:*",
+    "@tour/server": "workspace:*",
+    "@tour/shared": "workspace:*"
+  }
+}
