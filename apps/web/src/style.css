@@ -142,6 +142,7 @@ body {
   padding: 1rem;
   flex: 1;
   overflow: auto;
+  position: relative;
 }
 
 .slide-content p,
@@ -151,8 +152,14 @@ body {
   color: var(--ink);
 }
 
+.slide-layout {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
 .snippet {
-  margin: 1rem 0;
   overflow: hidden;
   background: color-mix(in srgb, var(--surface) 90%, var(--bg) 10%);
 }
@@ -172,10 +179,11 @@ body {
 
 pre {
   margin: 0;
-  padding: 0.65rem;
+  padding: 0.75rem;
   background: var(--code-bg);
   color: var(--code-ink);
   overflow-x: auto;
+  min-height: min(58vh, 680px);
 }
 
 code {
@@ -186,9 +194,10 @@ code {
 
 .code-line {
   display: grid;
-  grid-template-columns: 3ch 1fr;
-  gap: 0.8rem;
-  padding: 0.05rem 0.25rem;
+  grid-template-columns: 4ch minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.08rem 0.3rem;
   border-left: 2px solid transparent;
 }
 
@@ -199,12 +208,155 @@ code {
 
 .line-no {
   text-align: right;
-  color: #8fb1c2;
+  color: var(--code-line);
   user-select: none;
 }
 
 .line-text {
   white-space: pre;
+}
+
+.line-comment-cell {
+  min-width: 1.6rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.line-comment-trigger {
+  width: 1.45rem;
+  height: 1.45rem;
+  padding: 0.14rem;
+  border-radius: 0.32rem;
+  border-color: color-mix(in srgb, var(--accent-2) 70%, var(--outline) 30%);
+  background: color-mix(in srgb, var(--surface) 60%, var(--bg) 40%);
+  color: var(--accent-2);
+}
+
+.overall-comments {
+  position: relative;
+  border-top: 1px solid var(--outline);
+}
+
+.overall-toggle {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 2;
+}
+
+.overall-comment-body {
+  padding: 0.8rem 0.8rem 0.6rem;
+  max-height: 260px;
+  overflow: auto;
+  transition: max-height 180ms ease, opacity 160ms ease, padding 120ms ease;
+}
+
+.overall-comment-body[data-collapsed="true"] {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+.standalone-markdown {
+  padding: 0.3rem 0.2rem;
+}
+
+.markdown-render h3,
+.markdown-render h4 {
+  margin: 0.25rem 0 0.45rem;
+  color: var(--ink-strong);
+}
+
+.markdown-render p,
+.markdown-render ul {
+  margin: 0.3rem 0 0.6rem;
+}
+
+.markdown-render ul {
+  padding-left: 1.25rem;
+}
+
+.markdown-render code {
+  font-size: 0.84em;
+  background: color-mix(in srgb, var(--surface) 78%, var(--bg) 22%);
+  border-radius: 0.28rem;
+  padding: 0.06rem 0.25rem;
+}
+
+.markdown-render a {
+  color: var(--accent-2);
+}
+
+.comment-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 14;
+}
+
+.comment-window {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--outline);
+  background: color-mix(in srgb, var(--surface) 90%, var(--bg) 10%);
+  box-shadow: 0 18px 40px color-mix(in srgb, var(--bg) 62%, black 38%);
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateX(28px);
+  transition: opacity 180ms ease, transform 220ms ease;
+  min-width: 220px;
+  min-height: 120px;
+}
+
+.comment-window.is-open {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.comment-window-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.45rem;
+  border-bottom: 1px solid var(--outline);
+  background: color-mix(in srgb, var(--surface-strong) 76%, var(--surface) 24%);
+  cursor: move;
+  user-select: none;
+}
+
+.comment-window-title {
+  margin: 0;
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comment-window-close {
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 0.35rem;
+}
+
+.comment-window-body {
+  padding: 0.55rem 0.65rem 1.1rem;
+  overflow: auto;
+  flex: 1;
+}
+
+.comment-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 0.95rem;
+  height: 0.95rem;
+  cursor: nwse-resize;
+  background:
+    linear-gradient(135deg, transparent 0 50%, var(--outline) 50% 60%, transparent 60% 100%);
 }
 
 .controls {
@@ -238,7 +390,7 @@ button:disabled {
   cursor: not-allowed;
 }
 
-button:nth-child(3) {
+.controls button:nth-child(3) {
   background: var(--accent);
   color: var(--bg);
 }

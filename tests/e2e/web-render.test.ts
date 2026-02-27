@@ -74,29 +74,38 @@ describe("web render e2e", () => {
       await page.waitForSelector("#slide-title");
 
       const usage = await page.evaluate(() => {
-        const shell = document.querySelector<HTMLElement>(".app-shell");
+        const state = globalThis as unknown as { document: any; window: { innerWidth: number } };
+        const shell = state.document.querySelector(".app-shell") as
+          | { getBoundingClientRect: () => { width: number } }
+          | null;
         if (!shell) {
           throw new Error("Missing .app-shell");
         }
         const rect = shell.getBoundingClientRect();
-        return rect.width / window.innerWidth;
+        return rect.width / state.window.innerWidth;
       });
       expect(usage).toBeGreaterThan(0.95);
 
       const controls = await page.evaluate(() => {
-        const bar = document.querySelector<HTMLElement>(".controls");
+        const state = globalThis as unknown as { document: any; window: { innerWidth: number } };
+        const bar = state.document.querySelector(".controls") as
+          | {
+              getBoundingClientRect: () => { top: number; right: number };
+              querySelectorAll: (selector: string) => Array<{ textContent?: string | null }>;
+            }
+          | null;
         if (!bar) {
           throw new Error("Missing .controls");
         }
 
         const bounds = bar.getBoundingClientRect();
-        const buttons = Array.from(bar.querySelectorAll<HTMLButtonElement>("button"));
+        const buttons = Array.from(bar.querySelectorAll("button"));
         const iconOnly = buttons.every((button) => button.textContent?.trim().length === 0);
 
         return {
           top: bounds.top,
-          rightGap: window.innerWidth - bounds.right,
-          hasSavePdf: Boolean(document.querySelector("#save-pdf")),
+          rightGap: state.window.innerWidth - bounds.right,
+          hasSavePdf: Boolean(state.document.querySelector("#save-pdf")),
           iconOnly
         };
       });
@@ -106,20 +115,21 @@ describe("web render e2e", () => {
       expect(controls.iconOnly).toBeTrue();
 
       const deckLayout = await page.evaluate(() => {
-        const deck = document.querySelector<HTMLElement>(".deck");
-        const snippet = document.querySelector<HTMLElement>(".snippet");
+        const state = globalThis as unknown as { document: any; window: any };
+        const deck = state.document.querySelector(".deck") as { getBoundingClientRect: () => { height: number } } | null;
+        const snippet = state.document.querySelector(".snippet");
         if (!deck || !snippet) {
           throw new Error("Missing slide elements");
         }
 
-        const deckStyle = window.getComputedStyle(deck);
-        const snippetStyle = window.getComputedStyle(snippet);
+        const deckStyle = state.window.getComputedStyle(deck);
+        const snippetStyle = state.window.getComputedStyle(snippet);
         const deckBounds = deck.getBoundingClientRect();
 
         return {
           deckBorder: Number.parseFloat(deckStyle.borderTopWidth),
           snippetBorder: Number.parseFloat(snippetStyle.borderTopWidth),
-          deckHeightUsage: deckBounds.height / window.innerHeight
+          deckHeightUsage: deckBounds.height / state.window.innerHeight
         };
       });
       expect(deckLayout.deckBorder).toBe(0);
@@ -127,8 +137,9 @@ describe("web render e2e", () => {
       expect(deckLayout.deckHeightUsage).toBeGreaterThan(0.7);
 
       const lineNumbers = await page.evaluate(() => {
-        const first = document.querySelector<HTMLElement>(".line-no");
-        const all = Array.from(document.querySelectorAll<HTMLElement>(".line-no"));
+        const state = globalThis as unknown as { document: any };
+        const first = state.document.querySelector(".line-no");
+        const all = Array.from(state.document.querySelectorAll(".line-no")) as Array<{ textContent?: string | null }>;
         const last = all.at(-1);
         return {
           first: first?.textContent?.trim(),

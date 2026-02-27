@@ -65,11 +65,10 @@ describe("theme e2e", () => {
         await page.waitForSelector("#slide-title");
 
         const actual = await page.evaluate(() => {
-          const root = window.getComputedStyle(document.documentElement);
-          const body = window.getComputedStyle(document.body);
-          const hasToggle = Boolean(
-            document.querySelector("[data-theme-toggle], #theme-toggle, .theme-toggle")
-          );
+          const state = globalThis as unknown as { document: any; window: any };
+          const root = state.window.getComputedStyle(state.document.documentElement);
+          const body = state.window.getComputedStyle(state.document.body);
+          const hasToggle = Boolean(state.document.querySelector("[data-theme-toggle], #theme-toggle, .theme-toggle"));
 
           return {
             bg: root.getPropertyValue("--bg").trim().toLowerCase(),

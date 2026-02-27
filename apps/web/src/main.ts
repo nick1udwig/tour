@@ -3,7 +3,8 @@ import "./print.css";
 
 import { fetchJobStatus, fetchSlidesMarkdown } from "./api";
 import { saveMarkdown } from "./export";
-import { parseSlides, type Slide, type SlideBlock, type SlideSnippet } from "./markdown";
+import { parseSlides, type Slide } from "./markdown";
+import { renderSlideContent } from "./slide-view";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) {
@@ -39,6 +40,7 @@ async function boot(appRoot: HTMLDivElement, currentJobId: string): Promise<void
   let markdown = "";
   let slides: Slide[] = [];
   let index = 0;
+  let disposeSlideContent = () => {};
 
   saveMdButton.disabled = true;
   prevButton.disabled = true;
@@ -70,21 +72,20 @@ async function boot(appRoot: HTMLDivElement, currentJobId: string): Promise<void
   };
 
   const renderSlide = (): void => {
+    disposeSlideContent();
+
     if (slides.length === 0) {
       title.textContent = "No slides";
       progress.textContent = "0 / 0";
       content.innerHTML = "<p>No deck content returned.</p>";
+      disposeSlideContent = () => {};
       return;
     }
 
     const slide = slides[index];
     title.textContent = slide.title;
     progress.textContent = `${index + 1} / ${slides.length}`;
-    content.innerHTML = "";
-
-    for (const block of slide.blocks) {
-      content.appendChild(renderBlock(block));
-    }
+    disposeSlideContent = renderSlideContent(content, slide);
 
     prevButton.disabled = index === 0;
     nextButton.disabled = index >= slides.length - 1;
@@ -174,100 +175,6 @@ function shellMarkup(jobId: string): string {
       </section>
     </main>
   `;
-}
-
-function renderBlock(block: SlideBlock): HTMLElement {
-  if (block.type === "heading") {
-    const heading = document.createElement(block.level === 2 ? "h3" : "h4");
-    heading.textContent = block.text;
-    return heading;
-  }
-
-  if (block.type === "paragraph") {
-    const paragraph = document.createElement("p");
-    paragraph.textContent = block.text;
-    return paragraph;
-  }
-
-  if (block.type === "list") {
-    const list = document.createElement("ul");
-    for (const item of block.items) {
-      const li = document.createElement("li");
-      li.textContent = item;
-      list.appendChild(li);
-    }
-    return list;
-  }
-
-  return renderSnippet(block.snippet);
-}
-
-function renderSnippet(snippet: SlideSnippet): HTMLElement {
-  const wrapper = document.createElement("section");
-  wrapper.className = "snippet";
-
-  const meta = document.createElement("div");
-  meta.className = "snippet-meta";
-
-  const location = document.createElement("span");
-  location.textContent = [snippet.path ?? "(path missing)", snippet.lines ? `lines ${snippet.lines}` : ""]
-    .filter(Boolean)
-    .join(" · ");
-  meta.appendChild(location);
-
-  if (snippet.permalink) {
-    const link = document.createElement("a");
-    link.href = snippet.permalink;
-    link.target = "_blank";
-    link.rel = "noreferrer";
-    link.textContent = "View on GitHub";
-    meta.appendChild(link);
-  }
-
-  const pre = document.createElement("pre");
-  const code = document.createElement("code");
-  code.className = `language-${snippet.language}`;
-
-  const highlighted = new Set(snippet.highlightLines);
-  const lines = snippet.code.split("\n");
-  const firstLine = parseSnippetStartLine(snippet.lines);
-
-  lines.forEach((line, offset) => {
-    const row = document.createElement("div");
-    row.className = "code-line";
-    if (highlighted.has(offset + 1)) {
-      row.classList.add("highlight");
-    }
-
-    const lineNo = document.createElement("span");
-    lineNo.className = "line-no";
-    lineNo.textContent = String(firstLine + offset);
-
-    const codeText = document.createElement("span");
-    codeText.className = "line-text";
-    codeText.textContent = line || " ";
-
-    row.append(lineNo, codeText);
-    code.appendChild(row);
-  });
-
-  pre.appendChild(code);
-  wrapper.append(meta, pre);
-  return wrapper;
-}
-
-function parseSnippetStartLine(lines?: string): number {
-  if (!lines) {
-    return 1;
-  }
-
-  const match = /^(\d+)(?:-\d+)?$/.exec(lines.trim());
-  if (!match) {
-    return 1;
-  }
-
-  const parsed = Number.parseInt(match[1], 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 }
 
 function selectEl<T extends HTMLElement>(selector: string): T {

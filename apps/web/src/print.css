@@ -14,12 +14,10 @@
   .no-print,
   .status-panel,
   .badge,
-  .subline {
+  .subline,
+  .comment-layer,
+  .overall-toggle,
+  .line-comment-trigger {
     display: none !important;
-  }
-
-  .deck,
-  .snippet {
-    border-color: #000;
   }
 }
