@@ -204,6 +204,7 @@ pre {
 .code-line.highlight {
   background: var(--code-highlight);
   border-left-color: var(--accent);
+  cursor: pointer;
 }
 
 .line-no {
@@ -347,8 +348,23 @@ pre {
 .comment-window-title {
   margin: 0;
   font-size: 0.72rem;
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.comment-window-path {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comment-window-label {
+  flex: none;
+  color: var(--ink-strong);
   white-space: nowrap;
 }
 

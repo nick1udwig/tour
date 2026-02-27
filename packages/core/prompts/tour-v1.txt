@@ -42,7 +42,7 @@ For slides with code, use exactly one snippet and this structure:
 
 # <Slide title>
 
-```<lang> path=<repo-relative-path> lines=<A>-<B> highlight=<r1,r2,...> permalink=https://github.com/{{owner}}/{{repo}}/blob/{{commitSha}}/<repo-relative-path>#L<A>-L<B>
+```<lang> path=<repo-relative-path> lines=<A>-<B> permalink=https://github.com/{{owner}}/{{repo}}/blob/{{commitSha}}/<repo-relative-path>#L<A>-L<B>
 <exact file content for lines A..B>
 ```
 
@@ -57,9 +57,11 @@ For slides with code, use exactly one snippet and this structure:
 
 Critical formatting rules:
 - `lines=A-B` must be absolute file line numbers.
-- `highlight` must be snippet-relative row numbers (1-based within the snippet).
+- Do not include a `highlight=` snippet attribute.
+- Highlights are inferred only from line commentary headings (`Line`/`Lines`).
 - Every line commentary heading must refer to absolute lines inside A..B.
-- Use heading text that starts with `Line` or `Lines` for line commentary sections.
+- Use `## Line <X> commentary` for a single line.
+- Use `## Lines <Y>-<Z> commentary` for a line range.
 - Keep bullets flat (`- item`), no nested bullets.
 - In commentary, use inline markdown only; do not use fenced code blocks.
 - Keep snippets tight (roughly 6-30 lines), high signal only.

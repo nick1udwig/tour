@@ -3,7 +3,6 @@ export interface SlideSnippet {
   path?: string;
   lines?: string;
   permalink?: string;
-  highlightLines: number[];
   code: string;
 }
 
@@ -129,17 +128,11 @@ function parseSnippet(info: string, code: string): SlideSnippet {
     kv.set(key, valueParts.join("="));
   }
 
-  const highlights = (kv.get("highlight") ?? "")
-    .split(",")
-    .map((value) => Number(value.trim()))
-    .filter((value) => Number.isInteger(value) && value > 0);
-
   return {
     language,
     path: kv.get("path"),
     lines: kv.get("lines"),
     permalink: kv.get("permalink"),
-    highlightLines: highlights,
     code
   };
 }

@@ -75,10 +75,6 @@ function validateSnippetMetadata(markdown: string, errors: string[]): void {
       errors.push(`Snippet missing lines metadata: ${info}`);
     }
 
-    if (!/highlight=\d+(,\d+)*/.test(info)) {
-      errors.push(`Snippet missing highlight metadata: ${info}`);
-    }
-
     if (!/permalink=https:\/\/github\.com\/.+\/blob\/.+/.test(info)) {
       errors.push(`Snippet missing commit-pinned permalink metadata: ${info}`);
     }

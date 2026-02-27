@@ -41,10 +41,12 @@ describe("commentary windows e2e", () => {
         path.join(artifactRoot, "slides", "tour.md"),
         [
           "# Architecture map",
-          "```ts path=src/main.ts lines=10-12 highlight=1,3 permalink=https://github.com/openai/codex/blob/abc/src/main.ts#L10-L12",
+          "```ts path=src/very/long/path/to/components/main/example/file.ts lines=10-14 permalink=https://github.com/openai/codex/blob/abc/src/very/long/path/to/components/main/example/file.ts#L10-L14",
           "const a = 1;",
           "const b = 2;",
           "console.log(a + b);",
+          "const c = a + b;",
+          "return c;",
           "```",
           "",
           "## Overview",
@@ -53,8 +55,8 @@ describe("commentary windows e2e", () => {
           "## Line 10 commentary",
           "- **Line 10** scoped comment",
           "",
-          "## Line 12 commentary",
-          "- [Line 12 link](https://example.com)",
+          "## Lines 12-13 commentary",
+          "- [Lines 12-13 link](https://example.com)",
           "",
           "---",
           "# Build and run setup",
@@ -102,6 +104,34 @@ describe("commentary windows e2e", () => {
 
       expect(await page.locator(".line-comment-trigger").count()).toBe(2);
       await expect(await page.locator(".overall-toggle").count()).toBe(1);
+
+      const highlightedLineCount = await page.locator(".code-line.highlight").count();
+      expect(highlightedLineCount).toBe(3);
+
+      await page.evaluate(() => {
+        const state = globalThis as unknown as { document: any };
+        const rows = state.document.querySelectorAll(".code-line");
+        rows[2]?.click();
+      });
+      await page.waitForFunction(() => {
+        const state = globalThis as unknown as { document: any };
+        return state.document.querySelectorAll(".comment-window").length === 1;
+      });
+      expect(await page.locator(".comment-window").count()).toBe(1);
+
+      const lineLabel = await page.textContent(".comment-window-label");
+      expect(lineLabel?.trim()).toBe("lines 12-13");
+
+      await page.evaluate(() => {
+        const state = globalThis as unknown as { document: any };
+        const rows = state.document.querySelectorAll(".code-line");
+        rows[2]?.click();
+      });
+      await page.waitForFunction(() => {
+        const state = globalThis as unknown as { document: any };
+        return state.document.querySelectorAll(".comment-window").length === 0;
+      });
+      expect(await page.locator(".comment-window").count()).toBe(0);
 
       await page.locator(".line-comment-trigger").first().click();
       await page.waitForSelector(".comment-window");

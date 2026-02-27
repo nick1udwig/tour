@@ -20,7 +20,7 @@ interface StructuredLineSection {
 }
 
 interface CommentWindowManager {
-  open(comment: LineComment, snippet: SlideSnippet): void;
+  toggle(comment: LineComment, snippet: SlideSnippet): void;
   dispose(): void;
 }
 
@@ -78,13 +78,18 @@ function renderSnippetContext(context: SnippetContext, manager: CommentWindowMan
 
   const snippetLines = context.snippet.code.split("\n");
   const firstLine = parseSnippetStartLine(context.snippet.lines);
-  const highlighted = new Set(normalizeHighlights(context.snippet.highlightLines, firstLine, snippetLines.length));
-
-  const commentsByRow = new Map<number, LineComment[]>();
+  const commentsByLineRow = new Map<number, LineComment[]>();
+  const commentsByTriggerRow = new Map<number, LineComment[]>();
   for (const comment of context.lineComments) {
-    const list = commentsByRow.get(comment.row) ?? [];
-    list.push(comment);
-    commentsByRow.set(comment.row, list);
+    const triggerRows = commentsByTriggerRow.get(comment.row) ?? [];
+    triggerRows.push(comment);
+    commentsByTriggerRow.set(comment.row, triggerRows);
+
+    for (const line of comment.lines) {
+      const lineRows = commentsByLineRow.get(line) ?? [];
+      lineRows.push(comment);
+      commentsByLineRow.set(line, lineRows);
+    }
   }
 
   snippetLines.forEach((line, offset) => {
@@ -92,8 +97,17 @@ function renderSnippetContext(context: SnippetContext, manager: CommentWindowMan
     row.className = "code-line";
 
     const rowNumber = offset + 1;
-    if (highlighted.has(rowNumber)) {
+    const rowComments = commentsByLineRow.get(rowNumber) ?? [];
+    if (rowComments.length > 0) {
       row.classList.add("highlight");
+      row.addEventListener("click", (event) => {
+        const target = event.target;
+        if (target instanceof HTMLElement && target.closest(".line-comment-trigger")) {
+          return;
+        }
+
+        manager.toggle(rowComments[0], context.snippet);
+      });
     }
 
     const lineNo = document.createElement("span");
@@ -107,8 +121,8 @@ function renderSnippetContext(context: SnippetContext, manager: CommentWindowMan
     const commentCell = document.createElement("span");
     commentCell.className = "line-comment-cell";
 
-    const rowComments = commentsByRow.get(rowNumber) ?? [];
-    for (const comment of rowComments) {
+    const rowTriggers = commentsByTriggerRow.get(rowNumber) ?? [];
+    for (const comment of rowTriggers) {
       const trigger = document.createElement("button");
       trigger.type = "button";
       trigger.className = "line-comment-trigger";
@@ -117,7 +131,7 @@ function renderSnippetContext(context: SnippetContext, manager: CommentWindowMan
       trigger.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        manager.open(comment, context.snippet);
+        manager.toggle(comment, context.snippet);
       });
       commentCell.appendChild(trigger);
     }
@@ -211,11 +225,9 @@ function buildSnippetContexts(blocks: SlideBlock[]): { contexts: SnippetContext[
 function materializeContext(snippet: SlideSnippet, noteBlocks: SlideBlock[], index: number): SnippetContext {
   const firstLine = parseSnippetStartLine(snippet.lines);
   const rowCount = snippet.code.split("\n").length;
-  const groups = groupConsecutive(normalizeHighlights(snippet.highlightLines, firstLine, rowCount));
   const structured = parseStructuredCommentarySections(noteBlocks);
 
   const lineComments: LineComment[] = [];
-  const usedRows = new Set<number>();
   const overviewBlocks = structured ? structured.overviewBlocks : noteBlocks;
 
   if (structured) {
@@ -223,10 +235,6 @@ function materializeContext(snippet: SlideSnippet, noteBlocks: SlideBlock[], ind
       const lines = mapAbsoluteLinesToRows(section.absoluteLines, firstLine, rowCount);
       if (lines.length === 0) {
         continue;
-      }
-
-      for (const line of lines) {
-        usedRows.add(line);
       }
 
       lineComments.push({
@@ -237,20 +245,6 @@ function materializeContext(snippet: SlideSnippet, noteBlocks: SlideBlock[], ind
         label: formatLineLabel(lines, firstLine)
       });
     }
-  }
-
-  for (const [groupIndex, lines] of groups.entries()) {
-    if (lines.some((line) => usedRows.has(line))) {
-      continue;
-    }
-
-    lineComments.push({
-      id: `snippet-${index}-comment-${groupIndex}`,
-      lines,
-      row: lines[0],
-      markdown: defaultLineComment(lines, firstLine),
-      label: formatLineLabel(lines, firstLine)
-    });
   }
 
   return {
@@ -265,18 +259,23 @@ function createCommentWindowManager(root: HTMLElement): CommentWindowManager {
   layer.className = "comment-layer";
   root.appendChild(layer);
 
-  const windows = new Set<HTMLDivElement>();
+  const windowsByCommentId = new Map<string, HTMLDivElement>();
 
   const closeWindow = (panel: HTMLDivElement): void => {
-    windows.delete(panel);
+    for (const [commentId, candidate] of windowsByCommentId.entries()) {
+      if (candidate === panel) {
+        windowsByCommentId.delete(commentId);
+        break;
+      }
+    }
     panel.remove();
   };
 
   const closeAll = (): void => {
-    for (const panel of windows) {
+    for (const panel of windowsByCommentId.values()) {
       panel.remove();
     }
-    windows.clear();
+    windowsByCommentId.clear();
   };
 
   const onOutsidePointerDown = (event: PointerEvent): void => {
@@ -294,13 +293,19 @@ function createCommentWindowManager(root: HTMLElement): CommentWindowManager {
 
   document.addEventListener("pointerdown", onOutsidePointerDown);
 
-  const open = (comment: LineComment, snippet: SlideSnippet): void => {
+  const toggle = (comment: LineComment, snippet: SlideSnippet): void => {
+    const existing = windowsByCommentId.get(comment.id);
+    if (existing) {
+      closeWindow(existing);
+      return;
+    }
+
     const panel = document.createElement("div");
     panel.className = "comment-window";
 
     const startingWidth = 340;
     const startingHeight = 220;
-    const offset = windows.size * 24;
+    const offset = windowsByCommentId.size * 24;
 
     panel.style.width = `${startingWidth}px`;
     panel.style.height = `${startingHeight}px`;
@@ -310,9 +315,19 @@ function createCommentWindowManager(root: HTMLElement): CommentWindowManager {
     const titlebar = document.createElement("div");
     titlebar.className = "comment-window-titlebar";
 
-    const title = document.createElement("p");
+    const title = document.createElement("div");
     title.className = "comment-window-title";
-    title.textContent = `${snippet.path ?? "snippet"} · ${comment.label}`;
+
+    const pathLabel = document.createElement("span");
+    pathLabel.className = "comment-window-path";
+    pathLabel.textContent = snippet.path ?? "snippet";
+    pathLabel.title = snippet.path ?? "snippet";
+
+    const lineLabel = document.createElement("span");
+    lineLabel.className = "comment-window-label";
+    lineLabel.textContent = comment.label;
+
+    title.append(pathLabel, lineLabel);
 
     const close = document.createElement("button");
     close.type = "button";
@@ -341,7 +356,7 @@ function createCommentWindowManager(root: HTMLElement): CommentWindowManager {
     installResizeBehavior(panel, resizeHandle, layer);
 
     layer.appendChild(panel);
-    windows.add(panel);
+    windowsByCommentId.set(comment.id, panel);
 
     requestAnimationFrame(() => {
       panel.classList.add("is-open");
@@ -355,7 +370,7 @@ function createCommentWindowManager(root: HTMLElement): CommentWindowManager {
   };
 
   return {
-    open,
+    toggle,
     dispose
   };
 }
@@ -605,27 +620,6 @@ function parseStructuredCommentarySections(
   };
 }
 
-function normalizeHighlights(highlightLines: number[], startLine: number, rowCount: number): number[] {
-  const relative = new Set<number>();
-
-  for (const entry of highlightLines) {
-    if (!Number.isInteger(entry) || entry <= 0) {
-      continue;
-    }
-
-    let row = entry;
-    if (entry > rowCount) {
-      row = entry - startLine + 1;
-    }
-
-    if (row >= 1 && row <= rowCount) {
-      relative.add(row);
-    }
-  }
-
-  return [...relative].sort((left, right) => left - right);
-}
-
 function mapAbsoluteLinesToRows(absoluteLines: number[], firstLine: number, rowCount: number): number[] {
   const rows = new Set<number>();
 
@@ -637,22 +631,6 @@ function mapAbsoluteLinesToRows(absoluteLines: number[], firstLine: number, rowC
   }
 
   return [...rows].sort((left, right) => left - right);
-}
-
-function groupConsecutive(values: number[]): number[][] {
-  const groups: number[][] = [];
-
-  for (const value of values) {
-    const current = groups.at(-1);
-    if (!current || value !== current[current.length - 1] + 1) {
-      groups.push([value]);
-      continue;
-    }
-
-    current.push(value);
-  }
-
-  return groups;
 }
 
 function parseSnippetStartLine(lines?: string): number {
@@ -674,19 +652,24 @@ function isOverviewHeading(text: string): boolean {
 }
 
 function parseLineHeadingLines(text: string): number[] {
-  const normalized = text.trim().toLowerCase();
-  if (!normalized.startsWith("line ") && !normalized.startsWith("lines ")) {
+  const normalized = text.trim();
+  const rangeMatch = /^lines?\s+(\d+)\s*-\s*(\d+)\b/i.exec(normalized);
+  if (rangeMatch) {
+    const start = Number.parseInt(rangeMatch[1], 10);
+    const end = Number.parseInt(rangeMatch[2], 10);
+    return expandLineRange(start, end);
+  }
+
+  const singleMatch = /^lines?\s+(\d+)\b/i.exec(normalized);
+  if (!singleMatch) {
     return [];
   }
 
-  const numbers = normalized.match(/\d+/g);
-  if (!numbers || numbers.length === 0) {
-    return [];
-  }
+  const line = Number.parseInt(singleMatch[1], 10);
+  return expandLineRange(line, line);
+}
 
-  const start = Number.parseInt(numbers[0], 10);
-  const end = Number.parseInt(numbers[1] ?? numbers[0], 10);
-
+function expandLineRange(start: number, end: number): number[] {
   if (!Number.isFinite(start) || !Number.isFinite(end)) {
     return [];
   }
