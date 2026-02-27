@@ -105,6 +105,27 @@ describe("web render e2e", () => {
       expect(controls.hasSavePdf).toBeFalse();
       expect(controls.iconOnly).toBeTrue();
 
+      const deckLayout = await page.evaluate(() => {
+        const deck = document.querySelector<HTMLElement>(".deck");
+        const snippet = document.querySelector<HTMLElement>(".snippet");
+        if (!deck || !snippet) {
+          throw new Error("Missing slide elements");
+        }
+
+        const deckStyle = window.getComputedStyle(deck);
+        const snippetStyle = window.getComputedStyle(snippet);
+        const deckBounds = deck.getBoundingClientRect();
+
+        return {
+          deckBorder: Number.parseFloat(deckStyle.borderTopWidth),
+          snippetBorder: Number.parseFloat(snippetStyle.borderTopWidth),
+          deckHeightUsage: deckBounds.height / window.innerHeight
+        };
+      });
+      expect(deckLayout.deckBorder).toBe(0);
+      expect(deckLayout.snippetBorder).toBe(0);
+      expect(deckLayout.deckHeightUsage).toBeGreaterThan(0.7);
+
       await expect(await page.textContent("#slide-title")).toContain("Architecture map");
       await page.click("#next-slide");
       await expect(await page.textContent("#slide-title")).toContain("Build and run setup");
