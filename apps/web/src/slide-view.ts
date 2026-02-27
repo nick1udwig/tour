@@ -14,6 +14,11 @@ interface LineComment {
   label: string;
 }
 
+interface StructuredLineSection {
+  absoluteLines: number[];
+  blocks: SlideBlock[];
+}
+
 interface CommentWindowManager {
   open(comment: LineComment, snippet: SlideSnippet): void;
   dispose(): void;
@@ -204,44 +209,53 @@ function buildSnippetContexts(blocks: SlideBlock[]): { contexts: SnippetContext[
 }
 
 function materializeContext(snippet: SlideSnippet, noteBlocks: SlideBlock[], index: number): SnippetContext {
-  const groups = groupConsecutive(normalizeHighlights(snippet.highlightLines, parseSnippetStartLine(snippet.lines), snippet.code.split("\n").length));
+  const firstLine = parseSnippetStartLine(snippet.lines);
+  const rowCount = snippet.code.split("\n").length;
+  const groups = groupConsecutive(normalizeHighlights(snippet.highlightLines, firstLine, rowCount));
+  const structured = parseStructuredCommentarySections(noteBlocks);
 
-  const listItems: string[] = [];
-  const overallBlocks: SlideBlock[] = [];
+  const lineComments: LineComment[] = [];
+  const usedRows = new Set<number>();
+  const overviewBlocks = structured ? structured.overviewBlocks : noteBlocks;
 
-  for (const block of noteBlocks) {
-    if (block.type === "list") {
-      listItems.push(...block.items);
+  if (structured) {
+    for (const [sectionIndex, section] of structured.lineSections.entries()) {
+      const lines = mapAbsoluteLinesToRows(section.absoluteLines, firstLine, rowCount);
+      if (lines.length === 0) {
+        continue;
+      }
+
+      for (const line of lines) {
+        usedRows.add(line);
+      }
+
+      lineComments.push({
+        id: `snippet-${index}-structured-${sectionIndex}`,
+        lines,
+        row: lines[0],
+        markdown: blocksToMarkdown(section.blocks).trim() || defaultLineComment(lines, firstLine),
+        label: formatLineLabel(lines, firstLine)
+      });
+    }
+  }
+
+  for (const [groupIndex, lines] of groups.entries()) {
+    if (lines.some((line) => usedRows.has(line))) {
       continue;
     }
 
-    overallBlocks.push(block);
-  }
-
-  const firstLine = parseSnippetStartLine(snippet.lines);
-  const lineComments = groups.map((lines, groupIndex) => {
-    const comment = listItems[groupIndex] ?? defaultLineComment(lines, firstLine);
-
-    return {
+    lineComments.push({
       id: `snippet-${index}-comment-${groupIndex}`,
       lines,
       row: lines[0],
-      markdown: comment,
+      markdown: defaultLineComment(lines, firstLine),
       label: formatLineLabel(lines, firstLine)
-    } satisfies LineComment;
-  });
-
-  const remainingListItems = listItems.slice(groups.length);
-  if (remainingListItems.length > 0) {
-    overallBlocks.push({
-      type: "list",
-      items: remainingListItems
     });
   }
 
   return {
     snippet,
-    overallMarkdown: blocksToMarkdown(overallBlocks),
+    overallMarkdown: blocksToMarkdown(overviewBlocks),
     lineComments
   };
 }
@@ -544,6 +558,53 @@ function blocksToMarkdown(blocks: SlideBlock[]): string {
   return sections.join("\n\n");
 }
 
+function parseStructuredCommentarySections(
+  blocks: SlideBlock[]
+): { overviewBlocks: SlideBlock[]; lineSections: StructuredLineSection[] } | null {
+  const overviewBlocks: SlideBlock[] = [];
+  const lineSections: StructuredLineSection[] = [];
+  let sawStructuredHeading = false;
+  let currentTarget: { kind: "overview" } | { kind: "line"; section: StructuredLineSection } | null = null;
+
+  for (const block of blocks) {
+    if (block.type === "heading") {
+      if (isOverviewHeading(block.text)) {
+        sawStructuredHeading = true;
+        currentTarget = { kind: "overview" };
+        continue;
+      }
+
+      const absoluteLines = parseLineHeadingLines(block.text);
+      if (absoluteLines.length > 0) {
+        sawStructuredHeading = true;
+        const section: StructuredLineSection = {
+          absoluteLines,
+          blocks: []
+        };
+        lineSections.push(section);
+        currentTarget = { kind: "line", section };
+        continue;
+      }
+    }
+
+    if (currentTarget?.kind === "line") {
+      currentTarget.section.blocks.push(block);
+      continue;
+    }
+
+    overviewBlocks.push(block);
+  }
+
+  if (!sawStructuredHeading) {
+    return null;
+  }
+
+  return {
+    overviewBlocks,
+    lineSections
+  };
+}
+
 function normalizeHighlights(highlightLines: number[], startLine: number, rowCount: number): number[] {
   const relative = new Set<number>();
 
@@ -563,6 +624,19 @@ function normalizeHighlights(highlightLines: number[], startLine: number, rowCou
   }
 
   return [...relative].sort((left, right) => left - right);
+}
+
+function mapAbsoluteLinesToRows(absoluteLines: number[], firstLine: number, rowCount: number): number[] {
+  const rows = new Set<number>();
+
+  for (const absoluteLine of absoluteLines) {
+    const row = absoluteLine - firstLine + 1;
+    if (row >= 1 && row <= rowCount) {
+      rows.add(row);
+    }
+  }
+
+  return [...rows].sort((left, right) => left - right);
 }
 
 function groupConsecutive(values: number[]): number[][] {
@@ -593,6 +667,39 @@ function parseSnippetStartLine(lines?: string): number {
 
   const parsed = Number.parseInt(match[1], 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function isOverviewHeading(text: string): boolean {
+  return /^overview\b/i.test(text.trim());
+}
+
+function parseLineHeadingLines(text: string): number[] {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized.startsWith("line ") && !normalized.startsWith("lines ")) {
+    return [];
+  }
+
+  const numbers = normalized.match(/\d+/g);
+  if (!numbers || numbers.length === 0) {
+    return [];
+  }
+
+  const start = Number.parseInt(numbers[0], 10);
+  const end = Number.parseInt(numbers[1] ?? numbers[0], 10);
+
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    return [];
+  }
+
+  const low = Math.max(1, Math.min(start, end));
+  const high = Math.max(start, end);
+  const lines: number[] = [];
+
+  for (let line = low; line <= high; line += 1) {
+    lines.push(line);
+  }
+
+  return lines;
 }
 
 function formatLineLabel(lines: number[], firstLine: number): string {

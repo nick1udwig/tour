@@ -41,15 +41,19 @@ describe("commentary windows e2e", () => {
         path.join(artifactRoot, "slides", "tour.md"),
         [
           "# Architecture map",
-          "Overall notes with `inline code` and **bold**.",
-          "",
           "```ts path=src/main.ts lines=10-12 highlight=1,3 permalink=https://github.com/openai/codex/blob/abc/src/main.ts#L10-L12",
           "const a = 1;",
           "const b = 2;",
           "console.log(a + b);",
           "```",
           "",
-          "- **Line 10** comment",
+          "## Overview",
+          "Overall notes with `inline code` and **bold**.",
+          "",
+          "## Line 10 commentary",
+          "- **Line 10** scoped comment",
+          "",
+          "## Line 12 commentary",
           "- [Line 12 link](https://example.com)",
           "",
           "---",
@@ -83,14 +87,18 @@ describe("commentary windows e2e", () => {
         const state = globalThis as unknown as { document: any; window: any };
         const paragraph = state.document.querySelector(".overall-comment-body .markdown-render p");
         const inlineCode = state.document.querySelector(".overall-comment-body .markdown-render p code");
+        const overviewText = state.document.querySelector(".overall-comment-body")?.innerText ?? "";
 
         return {
           text: paragraph?.innerText ?? "",
-          codeDisplay: inlineCode ? state.window.getComputedStyle(inlineCode).display : ""
+          codeDisplay: inlineCode ? state.window.getComputedStyle(inlineCode).display : "",
+          overviewText
         };
       });
       expect(inlineCodeRendering.codeDisplay).toBe("inline");
       expect(inlineCodeRendering.text.includes("\n")).toBeFalse();
+      expect(inlineCodeRendering.overviewText.includes("Line 10 commentary")).toBeFalse();
+      expect(inlineCodeRendering.overviewText.includes("Line 12 commentary")).toBeFalse();
 
       expect(await page.locator(".line-comment-trigger").count()).toBe(2);
       await expect(await page.locator(".overall-toggle").count()).toBe(1);
@@ -100,7 +108,7 @@ describe("commentary windows e2e", () => {
       expect(await page.locator(".comment-window").count()).toBe(1);
 
       const firstWindowMarkup = await page.innerHTML(".comment-window-body");
-      expect(firstWindowMarkup).toContain("<strong>Line 10</strong>");
+      expect(firstWindowMarkup).toContain("<strong>Line 10</strong> scoped comment");
 
       await page.evaluate(() => {
         const state = globalThis as unknown as { document: any };
