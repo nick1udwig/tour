@@ -79,6 +79,19 @@ describe("commentary windows e2e", () => {
       await page.goto(`${server.url}/?jobId=job-1`);
       await page.waitForSelector(".line-comment-trigger");
 
+      const inlineCodeRendering = await page.evaluate(() => {
+        const state = globalThis as unknown as { document: any; window: any };
+        const paragraph = state.document.querySelector(".overall-comment-body .markdown-render p");
+        const inlineCode = state.document.querySelector(".overall-comment-body .markdown-render p code");
+
+        return {
+          text: paragraph?.innerText ?? "",
+          codeDisplay: inlineCode ? state.window.getComputedStyle(inlineCode).display : ""
+        };
+      });
+      expect(inlineCodeRendering.codeDisplay).toBe("inline");
+      expect(inlineCodeRendering.text.includes("\n")).toBeFalse();
+
       expect(await page.locator(".line-comment-trigger").count()).toBe(2);
       await expect(await page.locator(".overall-toggle").count()).toBe(1);
 

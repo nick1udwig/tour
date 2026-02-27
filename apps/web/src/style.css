@@ -186,7 +186,7 @@ pre {
   min-height: min(58vh, 680px);
 }
 
-code {
+.snippet pre > code {
   display: block;
   font-family: "JetBrains Mono", monospace;
   font-size: 0.85rem;
@@ -294,6 +294,7 @@ code {
 }
 
 .markdown-render code {
+  display: inline;
   font-size: 0.84em;
   background: color-mix(in srgb, var(--surface) 78%, var(--bg) 22%);
   border-radius: 0.28rem;
