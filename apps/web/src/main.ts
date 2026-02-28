@@ -85,7 +85,7 @@ async function boot(appRoot: HTMLDivElement, currentJobId: string): Promise<void
     const slide = slides[index];
     title.textContent = slide.title;
     progress.textContent = `${index + 1} / ${slides.length}`;
-    disposeSlideContent = renderSlideContent(content, slide);
+    disposeSlideContent = renderSlideContent(content, slide, { jobId: currentJobId });
 
     prevButton.disabled = index === 0;
     nextButton.disabled = index >= slides.length - 1;

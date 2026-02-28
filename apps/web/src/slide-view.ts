@@ -1,37 +1,55 @@
+import {
+  createCommentWindowManager,
+  type CommentWindowManager,
+  type LineComment
+} from "./comment-windows";
+import {
+  blocksToMarkdown,
+  defaultLineComment,
+  formatLineLabel,
+  mapAbsoluteLinesToRows,
+  parseSnippetAbsoluteLines,
+  parseSnippetStartLine,
+  parseStructuredCommentarySections,
+  renderMarkdown
+} from "./commentary-markdown";
+import { fetchRepoFile } from "./api";
 import { type Slide, type SlideBlock, type SlideSnippet } from "./markdown";
+
+interface RenderSlideOptions {
+  jobId?: string;
+}
 
 interface SnippetContext {
   snippet: SlideSnippet;
-  overallMarkdown: string;
   lineComments: LineComment[];
+  focusAbsoluteLines: number[];
 }
 
-interface LineComment {
-  id: string;
-  lines: number[];
-  row: number;
-  markdown: string;
-  label: string;
+interface MaterializedSnippetContext extends SnippetContext {
+  overviewBlocks: SlideBlock[];
 }
 
-interface StructuredLineSection {
-  absoluteLines: number[];
-  blocks: SlideBlock[];
+interface RenderSnippetOptions {
+  jobId?: string;
+  isDisposed: () => boolean;
 }
 
-interface CommentWindowManager {
-  toggle(comment: LineComment, snippet: SlideSnippet): void;
-  dispose(): void;
+interface CommentRows {
+  comment: LineComment;
+  rows: number[];
+  triggerRow: number | null;
 }
 
-export function renderSlideContent(root: HTMLElement, slide: Slide): () => void {
+export function renderSlideContent(root: HTMLElement, slide: Slide, options: RenderSlideOptions = {}): () => void {
   root.innerHTML = "";
 
   const layout = document.createElement("div");
   layout.className = "slide-layout";
 
+  let disposed = false;
   const windowManager = createCommentWindowManager(root);
-  const { contexts, fallbackMarkdown } = buildSnippetContexts(slide.blocks);
+  const { contexts, overviewMarkdown, fallbackMarkdown } = buildSnippetContexts(slide.blocks);
 
   if (contexts.length === 0) {
     const standalone = document.createElement("section");
@@ -39,18 +57,37 @@ export function renderSlideContent(root: HTMLElement, slide: Slide): () => void 
     standalone.appendChild(renderMarkdown(fallbackMarkdown));
     layout.appendChild(standalone);
   } else {
-    for (const context of contexts) {
-      layout.appendChild(renderSnippetContext(context, windowManager));
+    if (overviewMarkdown.trim()) {
+      layout.appendChild(renderOverallComments(overviewMarkdown));
     }
+
+    const stack = document.createElement("section");
+    stack.className = "snippet-stack";
+
+    for (const context of contexts) {
+      stack.appendChild(
+        renderSnippetContext(context, windowManager, {
+          jobId: options.jobId,
+          isDisposed: () => disposed
+        })
+      );
+    }
+
+    layout.appendChild(stack);
   }
 
   root.appendChild(layout);
   return () => {
+    disposed = true;
     windowManager.dispose();
   };
 }
 
-function renderSnippetContext(context: SnippetContext, manager: CommentWindowManager): HTMLElement {
+function renderSnippetContext(
+  context: SnippetContext,
+  manager: CommentWindowManager,
+  options: RenderSnippetOptions
+): HTMLElement {
   const wrapper = document.createElement("section");
   wrapper.className = "snippet";
 
@@ -75,44 +112,120 @@ function renderSnippetContext(context: SnippetContext, manager: CommentWindowMan
   const pre = document.createElement("pre");
   const code = document.createElement("code");
   code.className = `language-${context.snippet.language}`;
+  pre.appendChild(code);
 
-  const snippetLines = context.snippet.code.split("\n");
-  const firstLine = parseSnippetStartLine(context.snippet.lines);
+  const fallbackLineStart = parseSnippetStartLine(context.snippet.lines);
+  paintCodeRows({
+    code,
+    pre,
+    snippet: context.snippet,
+    lineComments: context.lineComments,
+    focusAbsoluteLines: context.focusAbsoluteLines,
+    manager,
+    sourceText: context.snippet.code,
+    visibleLineStart: fallbackLineStart
+  });
+
+  if (options.jobId && context.snippet.path) {
+    fetchRepoFile(options.jobId, context.snippet.path)
+      .then((fullFileContent) => {
+        if (options.isDisposed()) {
+          return;
+        }
+
+        paintCodeRows({
+          code,
+          pre,
+          snippet: context.snippet,
+          lineComments: context.lineComments,
+          focusAbsoluteLines: context.focusAbsoluteLines,
+          manager,
+          sourceText: fullFileContent,
+          visibleLineStart: 1
+        });
+      })
+      .catch(() => {
+        // Keep fallback snippet rendering when full file cannot be loaded.
+      });
+  }
+
+  wrapper.append(meta, pre);
+  return wrapper;
+}
+
+function paintCodeRows(input: {
+  code: HTMLElement;
+  pre: HTMLElement;
+  snippet: SlideSnippet;
+  lineComments: LineComment[];
+  focusAbsoluteLines: number[];
+  manager: CommentWindowManager;
+  sourceText: string;
+  visibleLineStart: number;
+}): void {
+  const { code, pre, snippet, lineComments, focusAbsoluteLines, manager, sourceText, visibleLineStart } = input;
+  const sourceLines = extractCodeLines(sourceText);
+  const rowCount = sourceLines.length;
+
+  const mappedComments: CommentRows[] = lineComments
+    .map((comment) => {
+      const rows = mapAbsoluteLinesToRows(comment.absoluteLines, visibleLineStart, rowCount);
+      return {
+        comment,
+        rows,
+        triggerRow: rows[0] ?? null
+      };
+    })
+    .filter((entry) => entry.rows.length > 0);
+
   const commentsByLineRow = new Map<number, LineComment[]>();
   const commentsByTriggerRow = new Map<number, LineComment[]>();
-  for (const comment of context.lineComments) {
-    const triggerRows = commentsByTriggerRow.get(comment.row) ?? [];
-    triggerRows.push(comment);
-    commentsByTriggerRow.set(comment.row, triggerRows);
+  for (const entry of mappedComments) {
+    if (entry.triggerRow !== null) {
+      const triggerRows = commentsByTriggerRow.get(entry.triggerRow) ?? [];
+      triggerRows.push(entry.comment);
+      commentsByTriggerRow.set(entry.triggerRow, triggerRows);
+    }
 
-    for (const line of comment.lines) {
-      const lineRows = commentsByLineRow.get(line) ?? [];
-      lineRows.push(comment);
-      commentsByLineRow.set(line, lineRows);
+    for (const row of entry.rows) {
+      const lineRows = commentsByLineRow.get(row) ?? [];
+      lineRows.push(entry.comment);
+      commentsByLineRow.set(row, lineRows);
     }
   }
 
-  snippetLines.forEach((line, offset) => {
+  const focusRows = mapAbsoluteLinesToRows(focusAbsoluteLines, visibleLineStart, rowCount);
+  const focusRowSet = new Set(focusRows);
+
+  code.innerHTML = "";
+
+  sourceLines.forEach((line, offset) => {
     const row = document.createElement("div");
     row.className = "code-line";
 
     const rowNumber = offset + 1;
+    row.dataset.row = String(rowNumber);
+
+    if (focusRowSet.has(rowNumber)) {
+      row.classList.add("focused");
+    }
+
     const rowComments = commentsByLineRow.get(rowNumber) ?? [];
     if (rowComments.length > 0) {
-      row.classList.add("highlight");
+      row.classList.add("annotated", "highlight");
       row.addEventListener("click", (event) => {
         const target = event.target;
         if (target instanceof HTMLElement && target.closest(".line-comment-trigger")) {
           return;
         }
 
-        manager.toggle(rowComments[0], context.snippet);
+        manager.toggle(rowComments[0], snippet);
       });
     }
 
     const lineNo = document.createElement("span");
     lineNo.className = "line-no";
-    lineNo.textContent = String(firstLine + offset);
+    lineNo.textContent = String(visibleLineStart + offset);
 
     const codeText = document.createElement("span");
     codeText.className = "line-text";
@@ -131,7 +244,7 @@ function renderSnippetContext(context: SnippetContext, manager: CommentWindowMan
       trigger.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        manager.toggle(comment, context.snippet);
+        manager.toggle(comment, snippet);
       });
       commentCell.appendChild(trigger);
     }
@@ -140,19 +253,38 @@ function renderSnippetContext(context: SnippetContext, manager: CommentWindowMan
     code.appendChild(row);
   });
 
-  pre.appendChild(code);
-  wrapper.append(meta, pre);
+  focusCodeViewport(pre, code, focusRows[0] ?? mappedComments[0]?.triggerRow ?? null);
+}
 
-  if (context.overallMarkdown.trim()) {
-    wrapper.appendChild(renderOverallComments(context.overallMarkdown));
+function focusCodeViewport(pre: HTMLElement, code: HTMLElement, rowNumber: number | null): void {
+  if (!rowNumber) {
+    return;
   }
 
-  return wrapper;
+  requestAnimationFrame(() => {
+    const row = code.querySelector<HTMLElement>(`.code-line[data-row="${rowNumber}"]`);
+    if (!row) {
+      return;
+    }
+
+    const targetTop = row.offsetTop - pre.clientHeight * 0.25;
+    pre.scrollTop = Math.max(0, targetTop);
+  });
+}
+
+function extractCodeLines(sourceText: string): string[] {
+  const normalized = sourceText.replace(/\r\n?/g, "\n");
+  const lines = normalized.split("\n");
+  if (lines.length > 1 && lines[lines.length - 1] === "") {
+    lines.pop();
+  }
+
+  return lines;
 }
 
 function renderOverallComments(markdown: string): HTMLElement {
   const shell = document.createElement("section");
-  shell.className = "overall-comments";
+  shell.className = "overall-comments slide-overview";
 
   const header = document.createElement("div");
   header.className = "overall-header";
@@ -163,20 +295,21 @@ function renderOverallComments(markdown: string): HTMLElement {
 
   const toggle = document.createElement("button");
   toggle.type = "button";
-  toggle.className = "overall-toggle";
-  toggle.setAttribute("aria-label", "Collapse comments");
-  toggle.innerHTML = iconChevronDown();
+  toggle.className = "overall-toggle slide-overview-toggle";
+  toggle.setAttribute("aria-label", "Collapse overview");
+  toggle.innerHTML = iconChevronUp();
 
   const body = document.createElement("div");
-  body.className = "overall-comment-body";
+  body.className = "overall-comment-body slide-overview-body";
   body.dataset.collapsed = "false";
   body.appendChild(renderMarkdown(markdown));
 
   toggle.addEventListener("click", () => {
     const collapsed = body.dataset.collapsed === "true";
-    body.dataset.collapsed = collapsed ? "false" : "true";
-    toggle.setAttribute("aria-label", collapsed ? "Collapse comments" : "Expand comments");
-    toggle.innerHTML = collapsed ? iconChevronDown() : iconChevronUp();
+    const nextCollapsed = !collapsed;
+    body.dataset.collapsed = nextCollapsed ? "true" : "false";
+    toggle.setAttribute("aria-label", nextCollapsed ? "Expand overview" : "Collapse overview");
+    toggle.innerHTML = nextCollapsed ? iconChevronDown() : iconChevronUp();
   });
 
   header.append(label, toggle);
@@ -184,18 +317,20 @@ function renderOverallComments(markdown: string): HTMLElement {
   return shell;
 }
 
-function buildSnippetContexts(blocks: SlideBlock[]): { contexts: SnippetContext[]; fallbackMarkdown: string } {
+function buildSnippetContexts(blocks: SlideBlock[]): {
+  contexts: SnippetContext[];
+  overviewMarkdown: string;
+  fallbackMarkdown: string;
+} {
   const contexts: Array<{ snippet: SlideSnippet; noteBlocks: SlideBlock[] }> = [];
   let current: { snippet: SlideSnippet; noteBlocks: SlideBlock[] } | null = null;
-  let pendingBeforeFirst: SlideBlock[] = [];
+  const pendingBeforeFirst: SlideBlock[] = [];
 
   for (const block of blocks) {
     if (block.type === "code") {
-      const noteBlocks: SlideBlock[] = current === null ? [...pendingBeforeFirst] : [];
-      pendingBeforeFirst = [];
       current = {
         snippet: block.snippet,
-        noteBlocks
+        noteBlocks: []
       };
       contexts.push(current);
       continue;
@@ -211,509 +346,60 @@ function buildSnippetContexts(blocks: SlideBlock[]): { contexts: SnippetContext[
   if (contexts.length === 0) {
     return {
       contexts: [],
+      overviewMarkdown: "",
       fallbackMarkdown: blocksToMarkdown(blocks)
     };
   }
 
-  const hydrated = contexts.map((entry, index) => materializeContext(entry.snippet, entry.noteBlocks, index));
+  const overviewBlocks = [...pendingBeforeFirst];
+  const hydrated: SnippetContext[] = [];
+
+  for (const [index, entry] of contexts.entries()) {
+    const materialized = materializeContext(entry.snippet, entry.noteBlocks, index);
+    hydrated.push({
+      snippet: materialized.snippet,
+      lineComments: materialized.lineComments,
+      focusAbsoluteLines: materialized.focusAbsoluteLines
+    });
+
+    if (materialized.overviewBlocks.length > 0) {
+      overviewBlocks.push(...materialized.overviewBlocks);
+    }
+  }
+
   return {
     contexts: hydrated,
+    overviewMarkdown: blocksToMarkdown(overviewBlocks),
     fallbackMarkdown: ""
   };
 }
 
-function materializeContext(snippet: SlideSnippet, noteBlocks: SlideBlock[], index: number): SnippetContext {
-  const firstLine = parseSnippetStartLine(snippet.lines);
-  const rowCount = snippet.code.split("\n").length;
+function materializeContext(snippet: SlideSnippet, noteBlocks: SlideBlock[], index: number): MaterializedSnippetContext {
   const structured = parseStructuredCommentarySections(noteBlocks);
-
   const lineComments: LineComment[] = [];
   const overviewBlocks = structured ? structured.overviewBlocks : noteBlocks;
 
   if (structured) {
     for (const [sectionIndex, section] of structured.lineSections.entries()) {
-      const lines = mapAbsoluteLinesToRows(section.absoluteLines, firstLine, rowCount);
-      if (lines.length === 0) {
+      if (section.absoluteLines.length === 0) {
         continue;
       }
 
       lineComments.push({
         id: `snippet-${index}-structured-${sectionIndex}`,
-        lines,
-        row: lines[0],
-        markdown: blocksToMarkdown(section.blocks).trim() || defaultLineComment(lines, firstLine),
-        label: formatLineLabel(lines, firstLine)
+        absoluteLines: section.absoluteLines,
+        markdown: blocksToMarkdown(section.blocks).trim() || defaultLineComment(section.absoluteLines),
+        label: formatLineLabel(section.absoluteLines)
       });
     }
   }
 
   return {
     snippet,
-    overallMarkdown: blocksToMarkdown(overviewBlocks),
-    lineComments
-  };
-}
-
-function createCommentWindowManager(root: HTMLElement): CommentWindowManager {
-  const layer = document.createElement("div");
-  layer.className = "comment-layer";
-  root.appendChild(layer);
-
-  const windowsByCommentId = new Map<string, HTMLDivElement>();
-
-  const closeWindow = (panel: HTMLDivElement): void => {
-    for (const [commentId, candidate] of windowsByCommentId.entries()) {
-      if (candidate === panel) {
-        windowsByCommentId.delete(commentId);
-        break;
-      }
-    }
-    panel.remove();
-  };
-
-  const closeAll = (): void => {
-    for (const panel of windowsByCommentId.values()) {
-      panel.remove();
-    }
-    windowsByCommentId.clear();
-  };
-
-  const onOutsidePointerDown = (event: PointerEvent): void => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) {
-      return;
-    }
-
-    if (target.closest(".comment-window") || target.closest(".line-comment-trigger")) {
-      return;
-    }
-
-    closeAll();
-  };
-
-  document.addEventListener("pointerdown", onOutsidePointerDown);
-
-  const toggle = (comment: LineComment, snippet: SlideSnippet): void => {
-    const existing = windowsByCommentId.get(comment.id);
-    if (existing) {
-      closeWindow(existing);
-      return;
-    }
-
-    const panel = document.createElement("div");
-    panel.className = "comment-window";
-
-    const startingWidth = 340;
-    const startingHeight = 220;
-    const offset = windowsByCommentId.size * 24;
-
-    panel.style.width = `${startingWidth}px`;
-    panel.style.height = `${startingHeight}px`;
-    panel.style.left = `${Math.max(12, root.clientWidth - startingWidth - 24 - offset)}px`;
-    panel.style.top = `${Math.max(12, 24 + offset)}px`;
-
-    const titlebar = document.createElement("div");
-    titlebar.className = "comment-window-titlebar";
-
-    const title = document.createElement("div");
-    title.className = "comment-window-title";
-
-    const pathLabel = document.createElement("span");
-    pathLabel.className = "comment-window-path";
-    pathLabel.textContent = snippet.path ?? "snippet";
-    pathLabel.title = snippet.path ?? "snippet";
-
-    const lineLabel = document.createElement("span");
-    lineLabel.className = "comment-window-label";
-    lineLabel.textContent = comment.label;
-
-    title.append(pathLabel, lineLabel);
-
-    const close = document.createElement("button");
-    close.type = "button";
-    close.className = "comment-window-close";
-    close.setAttribute("aria-label", "Close comment");
-    close.innerHTML = iconClose();
-    close.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      closeWindow(panel);
-    });
-
-    titlebar.append(title, close);
-
-    const body = document.createElement("div");
-    body.className = "comment-window-body";
-    body.appendChild(renderMarkdown(comment.markdown));
-
-    const resizeHandle = document.createElement("div");
-    resizeHandle.className = "comment-resize-handle";
-    resizeHandle.setAttribute("aria-hidden", "true");
-
-    panel.append(titlebar, body, resizeHandle);
-
-    installDragBehavior(panel, titlebar, layer);
-    installResizeBehavior(panel, resizeHandle, layer);
-
-    layer.appendChild(panel);
-    windowsByCommentId.set(comment.id, panel);
-
-    requestAnimationFrame(() => {
-      panel.classList.add("is-open");
-    });
-  };
-
-  const dispose = (): void => {
-    document.removeEventListener("pointerdown", onOutsidePointerDown);
-    closeAll();
-    layer.remove();
-  };
-
-  return {
-    toggle,
-    dispose
-  };
-}
-
-function installDragBehavior(panel: HTMLDivElement, handle: HTMLDivElement, boundary: HTMLElement): void {
-  handle.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0) {
-      return;
-    }
-
-    event.preventDefault();
-
-    const boundaryRect = boundary.getBoundingClientRect();
-    const panelRect = panel.getBoundingClientRect();
-
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const startLeft = panelRect.left - boundaryRect.left;
-    const startTop = panelRect.top - boundaryRect.top;
-
-    const onPointerMove = (moveEvent: PointerEvent): void => {
-      const dx = moveEvent.clientX - startX;
-      const dy = moveEvent.clientY - startY;
-
-      const maxLeft = Math.max(0, boundaryRect.width - panel.offsetWidth);
-      const maxTop = Math.max(0, boundaryRect.height - panel.offsetHeight);
-
-      const nextLeft = clamp(startLeft + dx, 0, maxLeft);
-      const nextTop = clamp(startTop + dy, 0, maxTop);
-
-      panel.style.left = `${nextLeft}px`;
-      panel.style.top = `${nextTop}px`;
-    };
-
-    const onPointerUp = (): void => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-    };
-
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-  });
-}
-
-function installResizeBehavior(panel: HTMLDivElement, handle: HTMLDivElement, boundary: HTMLElement): void {
-  handle.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0) {
-      return;
-    }
-
-    event.preventDefault();
-
-    const boundaryRect = boundary.getBoundingClientRect();
-    const panelRect = panel.getBoundingClientRect();
-
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const startWidth = panelRect.width;
-    const startHeight = panelRect.height;
-    const startLeft = panelRect.left - boundaryRect.left;
-    const startTop = panelRect.top - boundaryRect.top;
-
-    const onPointerMove = (moveEvent: PointerEvent): void => {
-      const dx = moveEvent.clientX - startX;
-      const dy = moveEvent.clientY - startY;
-
-      const maxWidth = Math.max(220, boundaryRect.width - startLeft);
-      const maxHeight = Math.max(120, boundaryRect.height - startTop);
-
-      const nextWidth = clamp(startWidth + dx, 220, maxWidth);
-      const nextHeight = clamp(startHeight + dy, 120, maxHeight);
-
-      panel.style.width = `${nextWidth}px`;
-      panel.style.height = `${nextHeight}px`;
-    };
-
-    const onPointerUp = (): void => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-    };
-
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-  });
-}
-
-function renderMarkdown(markdown: string): HTMLElement {
-  const root = document.createElement("div");
-  root.className = "markdown-render";
-
-  const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
-  let index = 0;
-
-  while (index < lines.length) {
-    const current = lines[index].trimEnd();
-
-    if (!current.trim()) {
-      index += 1;
-      continue;
-    }
-
-    if (/^#{2,4}\s+/.test(current)) {
-      const level = current.match(/^#+/)?.[0].length ?? 2;
-      const heading = document.createElement(level <= 2 ? "h3" : "h4");
-      appendInlineMarkdown(heading, current.replace(/^#{2,4}\s+/, "").trim());
-      root.appendChild(heading);
-      index += 1;
-      continue;
-    }
-
-    if (current.startsWith("- ")) {
-      const list = document.createElement("ul");
-      while (index < lines.length && lines[index].trim().startsWith("- ")) {
-        const item = document.createElement("li");
-        appendInlineMarkdown(item, lines[index].trim().replace(/^-\s+/, ""));
-        list.appendChild(item);
-        index += 1;
-      }
-      root.appendChild(list);
-      continue;
-    }
-
-    const paragraphLines: string[] = [];
-    while (index < lines.length) {
-      const line = lines[index].trim();
-      if (!line || line.startsWith("- ") || /^#{2,4}\s+/.test(line)) {
-        break;
-      }
-      paragraphLines.push(line);
-      index += 1;
-    }
-
-    const paragraph = document.createElement("p");
-    appendInlineMarkdown(paragraph, paragraphLines.join(" "));
-    root.appendChild(paragraph);
-  }
-
-  return root;
-}
-
-function appendInlineMarkdown(target: HTMLElement, text: string): void {
-  const tokenPattern = /`([^`]+)`|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|\*\*([^*]+)\*\*|\*([^*]+)\*/g;
-  let cursor = 0;
-
-  for (const match of text.matchAll(tokenPattern)) {
-    const matchIndex = match.index ?? 0;
-    if (matchIndex > cursor) {
-      target.append(document.createTextNode(text.slice(cursor, matchIndex)));
-    }
-
-    if (match[1]) {
-      const code = document.createElement("code");
-      code.textContent = match[1];
-      target.appendChild(code);
-    } else if (match[2] && match[3]) {
-      const link = document.createElement("a");
-      link.href = match[3];
-      link.target = "_blank";
-      link.rel = "noreferrer";
-      link.textContent = match[2];
-      target.appendChild(link);
-    } else if (match[4]) {
-      const strong = document.createElement("strong");
-      strong.textContent = match[4];
-      target.appendChild(strong);
-    } else if (match[5]) {
-      const em = document.createElement("em");
-      em.textContent = match[5];
-      target.appendChild(em);
-    }
-
-    cursor = matchIndex + match[0].length;
-  }
-
-  if (cursor < text.length) {
-    target.append(document.createTextNode(text.slice(cursor)));
-  }
-}
-
-function blocksToMarkdown(blocks: SlideBlock[]): string {
-  const sections: string[] = [];
-
-  for (const block of blocks) {
-    if (block.type === "heading") {
-      sections.push(`${"#".repeat(block.level)} ${block.text}`);
-      continue;
-    }
-
-    if (block.type === "paragraph") {
-      sections.push(block.text);
-      continue;
-    }
-
-    if (block.type === "list") {
-      sections.push(block.items.map((item) => `- ${item}`).join("\n"));
-      continue;
-    }
-  }
-
-  return sections.join("\n\n");
-}
-
-function parseStructuredCommentarySections(
-  blocks: SlideBlock[]
-): { overviewBlocks: SlideBlock[]; lineSections: StructuredLineSection[] } | null {
-  const overviewBlocks: SlideBlock[] = [];
-  const lineSections: StructuredLineSection[] = [];
-  let sawStructuredHeading = false;
-  let currentTarget: { kind: "overview" } | { kind: "line"; section: StructuredLineSection } | null = null;
-
-  for (const block of blocks) {
-    if (block.type === "heading") {
-      if (isOverviewHeading(block.text)) {
-        sawStructuredHeading = true;
-        currentTarget = { kind: "overview" };
-        continue;
-      }
-
-      const absoluteLines = parseLineHeadingLines(block.text);
-      if (absoluteLines.length > 0) {
-        sawStructuredHeading = true;
-        const section: StructuredLineSection = {
-          absoluteLines,
-          blocks: []
-        };
-        lineSections.push(section);
-        currentTarget = { kind: "line", section };
-        continue;
-      }
-    }
-
-    if (currentTarget?.kind === "line") {
-      currentTarget.section.blocks.push(block);
-      continue;
-    }
-
-    overviewBlocks.push(block);
-  }
-
-  if (!sawStructuredHeading) {
-    return null;
-  }
-
-  return {
     overviewBlocks,
-    lineSections
+    lineComments,
+    focusAbsoluteLines: parseSnippetAbsoluteLines(snippet.lines)
   };
-}
-
-function mapAbsoluteLinesToRows(absoluteLines: number[], firstLine: number, rowCount: number): number[] {
-  const rows = new Set<number>();
-
-  for (const absoluteLine of absoluteLines) {
-    const row = absoluteLine - firstLine + 1;
-    if (row >= 1 && row <= rowCount) {
-      rows.add(row);
-    }
-  }
-
-  return [...rows].sort((left, right) => left - right);
-}
-
-function parseSnippetStartLine(lines?: string): number {
-  if (!lines) {
-    return 1;
-  }
-
-  const match = /^(\d+)(?:-\d+)?$/.exec(lines.trim());
-  if (!match) {
-    return 1;
-  }
-
-  const parsed = Number.parseInt(match[1], 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
-}
-
-function isOverviewHeading(text: string): boolean {
-  return /^overview\b/i.test(text.trim());
-}
-
-function parseLineHeadingLines(text: string): number[] {
-  const normalized = text.trim();
-  const rangeMatch = /^lines?\s+(\d+)\s*-\s*(\d+)\b/i.exec(normalized);
-  if (rangeMatch) {
-    const start = Number.parseInt(rangeMatch[1], 10);
-    const end = Number.parseInt(rangeMatch[2], 10);
-    return expandLineRange(start, end);
-  }
-
-  const singleMatch = /^lines?\s+(\d+)\b/i.exec(normalized);
-  if (!singleMatch) {
-    return [];
-  }
-
-  const line = Number.parseInt(singleMatch[1], 10);
-  return expandLineRange(line, line);
-}
-
-function expandLineRange(start: number, end: number): number[] {
-  if (!Number.isFinite(start) || !Number.isFinite(end)) {
-    return [];
-  }
-
-  const low = Math.max(1, Math.min(start, end));
-  const high = Math.max(start, end);
-  const lines: number[] = [];
-
-  for (let line = low; line <= high; line += 1) {
-    lines.push(line);
-  }
-
-  return lines;
-}
-
-function formatLineLabel(lines: number[], firstLine: number): string {
-  if (lines.length === 0) {
-    return "line";
-  }
-
-  const start = firstLine + lines[0] - 1;
-  const end = firstLine + lines[lines.length - 1] - 1;
-
-  if (start === end) {
-    return `line ${start}`;
-  }
-
-  return `lines ${start}-${end}`;
-}
-
-function defaultLineComment(lines: number[], firstLine: number): string {
-  return `Commentary for ${formatLineLabel(lines, firstLine)}.`;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  if (value < min) {
-    return min;
-  }
-
-  if (value > max) {
-    return max;
-  }
-
-  return value;
 }
 
 function iconNote(): string {
@@ -726,8 +412,4 @@ function iconChevronDown(): string {
 
 function iconChevronUp(): string {
   return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg>`;
-}
-
-function iconClose(): string {
-  return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>`;
 }
