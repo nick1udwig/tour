@@ -21,7 +21,7 @@ PLAYWRIGHT_E2E=1 bun run test
 - `tests/integration/*`
   - repo resolver/clone, codex adapter mocked, server API, CLI orchestration mocked, reproducibility, failure paths
 - `tests/e2e/*`
-  - web render/export/full-flow with Playwright (gated by `PLAYWRIGHT_E2E=1`)
+  - web render/export/full-flow/comment windows/overview+multi-file with Playwright (gated by `PLAYWRIGHT_E2E=1`)
 
 ## Reproducibility
 

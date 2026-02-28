@@ -17,6 +17,14 @@
 4. Core writes artifacts/logs on both success and failure.
 5. Web polls `/api/jobs/:jobId/status` until `ready` or `failed`.
 6. On `ready`, web fetches `/api/jobs/:jobId/slides.md` and renders deck.
+7. For code slides, web fetches `/api/jobs/:jobId/file?path=<repo-relative-path>` to render full-file context and focus requested line ranges.
+
+## API endpoints
+
+- `GET /api/jobs/:jobId/status`
+- `GET /api/jobs/:jobId/slides.md`
+- `GET /api/jobs/:jobId/meta`
+- `GET /api/jobs/:jobId/file?path=<repo-relative-path>` (repo snapshot file content; path traversal blocked)
 
 ## Determinism controls
 

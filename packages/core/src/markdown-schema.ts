@@ -78,5 +78,9 @@ function validateSnippetMetadata(markdown: string, errors: string[]): void {
     if (!/permalink=https:\/\/github\.com\/.+\/blob\/.+/.test(info)) {
       errors.push(`Snippet missing commit-pinned permalink metadata: ${info}`);
     }
+
+    if (/highlight=/.test(info)) {
+      errors.push(`Snippet uses unsupported highlight metadata: ${info}`);
+    }
   }
 }

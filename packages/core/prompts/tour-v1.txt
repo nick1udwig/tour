@@ -43,16 +43,17 @@ How to work:
 4. Confirm exact absolute file line numbers before writing snippet metadata.
 5. Never invent files, lines, commands, or behavior.
 
-For slides with code, use exactly one snippet and this structure:
+For slides with code, use this structure:
 
 # <Slide title>
+
+## Overview
+- 2-5 bullets: why this code matters at system level.
+- Focus on non-obvious behavior and interactions.
 
 ```<lang> path=<repo-relative-path> lines=<A>-<B> permalink=https://github.com/{{owner}}/{{repo}}/blob/{{commitSha}}/<repo-relative-path>#L<A>-L<B>
 <exact file content for lines A..B>
 ```
-
-## Overview
-- 2-5 bullets: why this snippet matters.
 
 ## Line <X> commentary
 - Specific comment for absolute file line X.
@@ -60,15 +61,25 @@ For slides with code, use exactly one snippet and this structure:
 ## Lines <Y>-<Z> commentary
 - Specific comment for absolute file lines Y..Z.
 
+Optional additional code files on same slide:
+- You may include 2-3 total code blocks on a single slide when cross-file interactions are essential.
+- Keep at most 3 code blocks on one slide.
+- For each additional code block, place its related `## Line ... commentary` / `## Lines ... commentary` sections right after that code block.
+- Prefer one code block per slide unless multiple files are required to explain the control flow.
+
 Critical formatting rules:
 - `lines=A-B` must be absolute file line numbers.
-- Every line commentary heading must refer to absolute lines inside A..B.
+- Every line commentary heading must refer to absolute lines inside that snippet's `A..B` range.
 - Use `## Line <X> commentary` for a single line.
 - Use `## Lines <Y>-<Z> commentary` for a line range.
+- `lines=A-B` defines the lines of interest; frontend derives focus indicators from this range.
+- Do not provide manual highlight metadata.
 - Keep bullets flat (`- item`), no nested bullets.
 - Do not use ordered lists for commentary content.
 - In commentary, use inline markdown only; do not use fenced code blocks.
 - Keep snippets tight (roughly 6-30 lines), high signal only.
+- Never add commentary for trivial lines (imports, obvious assignments, straightforward return values).
+- Prefer commentary on tricky control flow, invariants, edge cases, state transitions, and cross-module effects.
 - Do not emit extra top-level `##` sections beyond `## Overview` and `## Line.../## Lines...`.
 - If you need extra structure under overview, use `###` headings.
 

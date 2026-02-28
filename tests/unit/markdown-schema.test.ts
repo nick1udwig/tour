@@ -41,4 +41,27 @@ describe("markdown schema", () => {
     const normalized = normalizeMarkdown("# X\r\n\r\n\r\nA  \r\n");
     expect(normalized).toBe("# X\n\nA\n");
   });
+
+  it("rejects manual highlight metadata", () => {
+    const markdown = [
+      "# Architecture map",
+      "",
+      "```ts path=src/index.ts lines=1-2 highlight=1 permalink=https://github.com/openai/codex/blob/abc/src/index.ts#L1-L2",
+      "const a = 1;",
+      "const b = 2;",
+      "```",
+      "",
+      "---",
+      "# Build and run setup",
+      "build run",
+      "",
+      "---",
+      "# Where to start",
+      "entry point"
+    ].join("\n");
+
+    const result = validateMarkdownContract(markdown);
+    expect(result.ok).toBeFalse();
+    expect(result.errors.some((entry) => entry.includes("unsupported highlight"))).toBeTrue();
+  });
 });
