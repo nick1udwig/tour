@@ -29,3 +29,16 @@ export async function fetchSlidesMarkdown(jobId: string): Promise<string> {
 
   return response.text();
 }
+
+export async function fetchRepoFile(jobId: string, repoRelativePath: string): Promise<string> {
+  const query = new URLSearchParams({
+    path: repoRelativePath
+  });
+
+  const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/file?${query.toString()}`);
+  if (!response.ok) {
+    throw new Error(`File request failed (${response.status})`);
+  }
+
+  return response.text();
+}

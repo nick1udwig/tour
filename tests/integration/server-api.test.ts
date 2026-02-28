@@ -26,8 +26,10 @@ describe("server API", () => {
       await mkdir(staticDir, { recursive: true });
       await mkdir(path.join(artifactRoot, "slides"), { recursive: true });
       await mkdir(path.join(artifactRoot, "meta"), { recursive: true });
+      await mkdir(path.join(artifactRoot, "repo", "src"), { recursive: true });
       await Bun.write(path.join(staticDir, "index.html"), "<html><body>tour</body></html>");
       await Bun.write(path.join(artifactRoot, "slides", "tour.md"), "# slide\n");
+      await Bun.write(path.join(artifactRoot, "repo", "src", "index.ts"), "export const x = 1;\n");
       await Bun.write(
         path.join(artifactRoot, "meta", "job.json"),
         JSON.stringify({
@@ -60,6 +62,13 @@ describe("server API", () => {
       expect(metaResponse.status).toBe(200);
       const metaPayload = (await metaResponse.json()) as { meta: { jobId: string } };
       expect(metaPayload.meta.jobId).toBe("job-1");
+
+      const fileResponse = await fetch(`${server.url}/api/jobs/job-1/file?path=src/index.ts`);
+      expect(fileResponse.status).toBe(200);
+      expect(await fileResponse.text()).toContain("export const x = 1;");
+
+      const traversalResponse = await fetch(`${server.url}/api/jobs/job-1/file?path=../../meta/job.json`);
+      expect(traversalResponse.status).toBe(403);
     });
   });
 });

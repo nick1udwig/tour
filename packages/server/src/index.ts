@@ -26,7 +26,7 @@ export async function startTourServer(options: StartServerOptions): Promise<{
       const pathname = url.pathname;
 
       if (pathname.startsWith("/api/jobs/")) {
-        await handleApiRequest(pathname, options.jobStore, res);
+        await handleApiRequest(url, options.jobStore, res);
         return;
       }
 
@@ -73,7 +73,8 @@ export async function startTourServer(options: StartServerOptions): Promise<{
   };
 }
 
-async function handleApiRequest(pathname: string, jobStore: InMemoryJobStore, res: import("node:http").ServerResponse): Promise<void> {
+async function handleApiRequest(url: URL, jobStore: InMemoryJobStore, res: import("node:http").ServerResponse): Promise<void> {
+  const pathname = url.pathname;
   const parts = pathname.split("/").filter(Boolean);
   if (parts.length < 4) {
     writeJson(res, 404, { error: "Not found" });
@@ -112,6 +113,32 @@ async function handleApiRequest(pathname: string, jobStore: InMemoryJobStore, re
     };
     writeJson(res, 200, payload);
     return;
+  }
+
+  if (resource === "file") {
+    const requestedPath = url.searchParams.get("path")?.trim();
+    if (!requestedPath) {
+      writeJson(res, 400, { error: "Missing file path" });
+      return;
+    }
+
+    const repoRoot = path.resolve(status.artifactRoot, "repo");
+    const resolvedFilePath = path.resolve(repoRoot, requestedPath);
+    if (!isWithinDirectory(resolvedFilePath, repoRoot)) {
+      writeJson(res, 403, { error: "Forbidden" });
+      return;
+    }
+
+    try {
+      const content = await readFile(resolvedFilePath, "utf8");
+      res.statusCode = 200;
+      res.setHeader("content-type", "text/plain; charset=utf-8");
+      res.end(content);
+      return;
+    } catch {
+      writeJson(res, 404, { error: "Not found" });
+      return;
+    }
   }
 
   writeJson(res, 404, { error: "Not found" });
@@ -173,6 +200,12 @@ function writeJson(res: import("node:http").ServerResponse, statusCode: number, 
   res.statusCode = statusCode;
   res.setHeader("content-type", "application/json; charset=utf-8");
   res.end(JSON.stringify(value));
+}
+
+function isWithinDirectory(candidatePath: string, directoryPath: string): boolean {
+  const root = path.resolve(directoryPath);
+  const candidate = path.resolve(candidatePath);
+  return candidate === root || candidate.startsWith(`${root}${path.sep}`);
 }
 
 export * from "./jobs";
