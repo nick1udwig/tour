@@ -1,4 +1,7 @@
 import { describe, expect, it } from "bun:test";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { composePrompt } from "@tour/core";
 
@@ -52,5 +55,28 @@ describe("prompt composer", () => {
     const bundle = await composePrompt({ manifest, maxDurationMinutes: 60 });
     expect(bundle.prompt).not.toContain("FILE: src/index.ts");
     expect(bundle.prompt).not.toContain("export const x = 1;");
+  });
+
+  it("injects the web markdown parser source dynamically", async () => {
+    const manifest = {
+      version: "v1",
+      repo: {
+        owner: "openai",
+        repo: "codex",
+        branch: "main",
+        commitSha: "abc"
+      },
+      files: []
+    };
+
+    const parserPath = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      "../../apps/web/src/markdown.ts"
+    );
+    const parserSource = await readFile(parserPath, "utf8");
+
+    const bundle = await composePrompt({ manifest, maxDurationMinutes: 60 });
+    expect(bundle.prompt).not.toContain("{{webMarkdownParserSource}}");
+    expect(bundle.prompt).toContain(parserSource.trimEnd());
   });
 });

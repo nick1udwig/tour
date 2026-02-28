@@ -5,6 +5,11 @@ Inspect the repo directly.
 Verify paths and line numbers from files.
 Do not modify repository files.
 
+Parser-first requirement:
+- The frontend parses your markdown with `apps/web/src/markdown.ts`.
+- Structure output so that parser can consume it exactly.
+- Parser source is included below; follow it as the source of truth.
+
 Output contract:
 - Output markdown only.
 - No prose before or after markdown.
@@ -57,14 +62,64 @@ For slides with code, use exactly one snippet and this structure:
 
 Critical formatting rules:
 - `lines=A-B` must be absolute file line numbers.
-- Do not include a `highlight=` snippet attribute.
-- Highlights are inferred only from line commentary headings (`Line`/`Lines`).
 - Every line commentary heading must refer to absolute lines inside A..B.
 - Use `## Line <X> commentary` for a single line.
 - Use `## Lines <Y>-<Z> commentary` for a line range.
 - Keep bullets flat (`- item`), no nested bullets.
+- Do not use ordered lists for commentary content.
 - In commentary, use inline markdown only; do not use fenced code blocks.
 - Keep snippets tight (roughly 6-30 lines), high signal only.
+- Do not emit extra top-level `##` sections beyond `## Overview` and `## Line.../## Lines...`.
+- If you need extra structure under overview, use `###` headings.
+
+Good heading examples:
+```
+# My slide
+
+## Overview
+Blah
+
+## Line 100 commentary
+Blahblah
+```
+```
+# My slide
+
+## Overview
+Blah
+
+### Request flow
+Lol
+
+## Line 100 commentary
+Blahblah
+```
+
+Bad heading example:
+```
+# My slide
+Hi
+
+## Request flow
+Lol
+
+## Overview
+Blah
+
+## Line 100 commentary
+Blahblah
+```
+
+The "Bad heading example" above will not have the `## Request flow` parsed: the user will not see that text.
+Instead format like the second "Good heading example": `### Request flow` underneath the `## Overview` will be seen by user.
 
 Deployment requirement:
 - If deployment path is unclear, include what was checked and state: "Not inferable from repository evidence."
+
+For reference, here is the markdown parser source.
+Anything that is not parsed by this code will not be visible to the user!
+Make sure the markdown you output follows the above guidelines so it can be parsed by the below code properly.
+
+```ts
+{{webMarkdownParserSource}}
+```

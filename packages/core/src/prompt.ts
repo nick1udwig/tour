@@ -12,18 +12,28 @@ interface ComposePromptInput {
 }
 
 export async function composePrompt(input: ComposePromptInput): Promise<PromptBundle> {
-  const templatePath = path.resolve(
-    path.dirname(fileURLToPath(import.meta.url)),
-    "../prompts/tour-v1.txt"
-  );
-  const template = await readFile(templatePath, "utf8");
+  const packageDir = path.dirname(fileURLToPath(import.meta.url));
+  const templatePath = path.resolve(packageDir, "../prompts/tour-v1.txt");
+  const webMarkdownParserPath = path.resolve(packageDir, "../../../apps/web/src/markdown.ts");
 
-  const prompt = template
-    .replaceAll("{{maxDurationMinutes}}", `${input.maxDurationMinutes}`)
-    .replaceAll("{{owner}}", input.manifest.repo.owner)
-    .replaceAll("{{repo}}", input.manifest.repo.repo)
-    .replaceAll("{{branch}}", input.manifest.repo.branch)
-    .replaceAll("{{commitSha}}", input.manifest.repo.commitSha);
+  const [template, webMarkdownParserSource] = await Promise.all([
+    readFile(templatePath, "utf8"),
+    readFile(webMarkdownParserPath, "utf8")
+  ]);
+
+  const templateVars = new Map<string, string>([
+    ["maxDurationMinutes", `${input.maxDurationMinutes}`],
+    ["owner", input.manifest.repo.owner],
+    ["repo", input.manifest.repo.repo],
+    ["branch", input.manifest.repo.branch],
+    ["commitSha", input.manifest.repo.commitSha],
+    ["webMarkdownParserSource", webMarkdownParserSource.trimEnd()]
+  ]);
+
+  let prompt = template;
+  for (const [key, value] of templateVars) {
+    prompt = prompt.replaceAll(`{{${key}}}`, value);
+  }
 
   return {
     version: PROMPT_VERSION,
